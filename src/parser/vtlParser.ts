@@ -80,11 +80,43 @@ export class VtlParser extends CstParser {
     return lexer.tokenize(input);
   }
 
-  // Template: sequence of segments
+  // Template: sequence of segments, or single object/array literal
   template = this.RULE('template', () => {
-    this.MANY(() => {
-      this.SUBRULE(this.segment);
-    });
+    this.OR([
+      {
+        GATE: () => {
+          const t = this.LA(1).tokenType;
+          return t === LCurly;
+        },
+        ALT: () => this.SUBRULE(this.objectLiteral),
+      },
+      {
+        GATE: () => {
+          const t = this.LA(1).tokenType;
+          return t === LBracket;
+        },
+        ALT: () => this.SUBRULE(this.arrayLiteral),
+      },
+      {
+        GATE: () => {
+          const t = this.LA(1).tokenType;
+          return t === DollarRef || t === QuietRef || t === InterpStart ||
+                 t === IfDirective || t === ElseIfDirective || t === ElseDirective ||
+                 t === SetDirective || t === ForEachDirective || t === BreakDirective ||
+                 t === StopDirective || t === MacroDirective || t === EndDirective ||
+                 t === StringLiteral || t === NumberLiteral || t === BooleanLiteral ||
+                 t === NullLiteral || t === Identifier;
+        },
+        ALT: () => this.SUBRULE(this.expression),
+      },
+      {
+        ALT: () => {
+          this.MANY(() => {
+            this.SUBRULE(this.segment);
+          });
+        },
+      },
+    ]);
   });
 
   // Segment: text, interpolation, or directive
