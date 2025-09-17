@@ -307,12 +307,20 @@ export const TemplateText = createToken({
         }
       }
 
-      // scan forward until next '#', '$', or newline
+      // scan forward until next '#', '$', '=', or newline
       let i = startOffset;
       while (i < len) {
         const ch = text.charCodeAt(i);
-        if (ch === 35 || ch === 36 || ch === 10 || ch === 13) break;
+        if (ch === 35 || ch === 36 || ch === 61 || ch === 10 || ch === 13) break; // 61 is '='
         i++;
+      }
+      
+      // Don't consume spaces before operators
+      if (i > startOffset) {
+        const lastChar = text.charCodeAt(i - 1);
+        if (lastChar === 32) { // space
+          i--;
+        }
       }
       if (i === startOffset) return null;
 

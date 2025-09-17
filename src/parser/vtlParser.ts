@@ -101,9 +101,6 @@ export class VtlParser extends CstParser {
         GATE: () => {
           const t = this.LA(1).tokenType;
           return t === DollarRef || t === QuietRef || t === InterpStart ||
-                 t === IfDirective || t === ElseIfDirective || t === ElseDirective ||
-                 t === SetDirective || t === ForEachDirective || t === BreakDirective ||
-                 t === StopDirective || t === MacroDirective || t === EndDirective ||
                  t === StringLiteral || t === NumberLiteral || t === BooleanLiteral ||
                  t === NullLiteral || t === Identifier;
         },
