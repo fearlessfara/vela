@@ -1,0 +1,18 @@
+{
+  "accountId": "$context.accountId",
+  "apiId": "$context.apiId",
+  "awsEndpointRequestId": "$context.awsEndpointRequestId",
+  "domainPrefix": "$context.domainPrefix",
+  "deploymentId": "$context.deploymentId",
+  "resourceId": "$context.resourceId",
+  "resourcePath": "$context.resourcePath",
+  "requestTime": "$context.requestTime",
+  "requestTimeEpoch": $context.requestTimeEpoch,
+  "stageVariables": $util.toJson($context.stageVariables),
+  "requestOverride": $util.toJson($context.requestOverride),
+  "responseOverride": $util.toJson($context.responseOverride),
+  "wafResponseCode": $context.wafResponseCode,
+  "webaclArn": "$context.webaclArn",
+  "identityVpcId": "$context.identity.vpcId",
+  "identityVpceId": "$context.identity.vpceId"
+}

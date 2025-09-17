@@ -1,0 +1,82 @@
+{
+  "httpMethod": "GET",
+  "path": "/prod/resource",
+  "resource": "/resource",
+  "stage": "prod",
+  "stageVariables": {
+    "env": "prod"
+  },
+  "requestContext": {
+    "requestId": "req-123",
+    "extendedRequestId": "ext-456",
+    "awsEndpointRequestId": "aws-endpoint-789",
+    "accountId": "123456789012",
+    "apiId": "api-abc",
+    "httpMethod": "GET",
+    "path": "/prod/resource",
+    "protocol": "HTTP/1.1",
+    "stage": "prod",
+    "domainName": "example.execute-api.us-east-1.amazonaws.com",
+    "domainPrefix": "example",
+    "deploymentId": "deployment-1",
+    "resourceId": "res-001",
+    "resourcePath": "/resource",
+    "requestTime": "12/Dec/2024:12:34:56 +0000",
+    "requestTimeEpoch": 1734002096000,
+    "wafResponseCode": 200,
+    "webaclArn": "arn:aws:wafv2:us-east-1:123456789012:regional/webacl/test/abc",
+    "stageVariables": {
+      "env": "prod"
+    },
+    "identity": {
+      "sourceIp": "1.2.3.4",
+      "userAgent": "CustomAgent",
+      "user": "user1",
+      "userArn": "arn:aws:iam::123456789012:user/user1",
+      "cognitoIdentityId": "us-east-1:example",
+      "cognitoIdentityPoolId": "us-east-1:pool",
+      "accountId": "123456789012",
+      "apiKey": "apikey123",
+      "apiKeyId": "apikeyid123",
+      "caller": "caller123",
+      "accessKey": "accessKey123",
+      "cognitoAuthenticationType": "authenticated",
+      "cognitoAuthenticationProvider": "cognitoidp",
+      "userAgentV2": "agentv2",
+      "clientCert": {
+        "clientCertPem": "pem-data"
+      },
+      "principalOrgId": "o-123456",
+      "vpcId": "vpc-123",
+      "vpceId": "vpce-123"
+    },
+    "authorizer": {
+      "claims": {
+        "claim1": "value1"
+      },
+      "scopes": [
+        "scope1",
+        "scope2"
+      ],
+      "principalId": "principal",
+      "integrationLatency": 42
+    },
+    "requestOverride": {
+      "header": {
+        "X-Test": "test-header"
+      },
+      "querystring": {
+        "foo": "bar"
+      },
+      "path": {
+        "id": "123"
+      }
+    },
+    "responseOverride": {
+      "statusCode": 202,
+      "header": {
+        "Content-Type": "application/json"
+      }
+    }
+  }
+}

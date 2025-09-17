@@ -6,13 +6,24 @@ export interface ContextProvider {
   // Request information
   requestId: string;
   extendedRequestId: string;
+  awsEndpointRequestId: string;
+  accountId: string;
+  apiId: string;
   httpMethod: string;
   path: string;
   protocol: string;
   stage: string;
   stageVariables: Record<string, string>;
   domainName: string;
-  
+  domainPrefix: string;
+  deploymentId: string;
+  resourceId: string;
+  resourcePath: string;
+  requestTime: string;
+  requestTimeEpoch: number;
+  wafResponseCode: number;
+  webaclArn: string;
+
   // Identity information
   identity: {
     sourceIp: string;
@@ -31,8 +42,10 @@ export interface ContextProvider {
     userAgentV2: string;
     clientCert: any;
     principalOrgId: string;
+    vpcId: string;
+    vpceId: string;
   };
-  
+
   // Authorizer information
   authorizer: {
     claims: Record<string, any>;
@@ -40,29 +53,48 @@ export interface ContextProvider {
     principalId: string;
     integrationLatency: number;
   };
-  
+
   // Error information
   error: {
     message: string;
     messageString: string;
     statusCode: number;
   };
-  
+
+  // Request override
+  requestOverride: {
+    header: Record<string, string>;
+    querystring: Record<string, string>;
+    path: Record<string, string>;
+  };
+
   // Response override
   responseOverride: {
     statusCode: number;
+    header: Record<string, string>;
   };
 }
 
 export interface ApiGatewayContext {
   requestId: string;
   extendedRequestId?: string;
+  awsEndpointRequestId?: string;
+  accountId?: string;
+  apiId?: string;
   httpMethod: string;
   path: string;
   protocol: string;
   stage: string;
   stageVariables?: Record<string, string>;
   domainName: string;
+  domainPrefix?: string;
+  deploymentId?: string;
+  resourceId?: string;
+  resourcePath?: string;
+  requestTime?: string;
+  requestTimeEpoch?: number;
+  wafResponseCode?: number;
+  webaclArn?: string;
   identity?: {
     sourceIp?: string;
     userAgent?: string;
@@ -80,6 +112,8 @@ export interface ApiGatewayContext {
     userAgentV2?: string;
     clientCert?: any;
     principalOrgId?: string;
+    vpcId?: string;
+    vpceId?: string;
   };
   authorizer?: {
     claims?: Record<string, any>;
@@ -92,8 +126,14 @@ export interface ApiGatewayContext {
     messageString?: string;
     statusCode?: number;
   };
+  requestOverride?: {
+    header?: Record<string, string>;
+    querystring?: Record<string, string>;
+    path?: Record<string, string>;
+  };
   responseOverride?: {
     statusCode?: number;
+    header?: Record<string, string>;
   };
 }
 
@@ -102,13 +142,24 @@ export function createContextProvider(context: ApiGatewayContext): ContextProvid
     // Request information
     requestId: context.requestId,
     extendedRequestId: context.extendedRequestId || '',
+    awsEndpointRequestId: context.awsEndpointRequestId || '',
+    accountId: context.accountId || '',
+    apiId: context.apiId || '',
     httpMethod: context.httpMethod,
     path: context.path,
     protocol: context.protocol,
     stage: context.stage,
     stageVariables: context.stageVariables || {},
     domainName: context.domainName,
-    
+    domainPrefix: context.domainPrefix || '',
+    deploymentId: context.deploymentId || '',
+    resourceId: context.resourceId || '',
+    resourcePath: context.resourcePath || '',
+    requestTime: context.requestTime || '',
+    requestTimeEpoch: context.requestTimeEpoch ?? 0,
+    wafResponseCode: context.wafResponseCode ?? 0,
+    webaclArn: context.webaclArn || '',
+
     // Identity information
     identity: {
       sourceIp: context.identity?.sourceIp || '',
@@ -127,8 +178,10 @@ export function createContextProvider(context: ApiGatewayContext): ContextProvid
       userAgentV2: context.identity?.userAgentV2 || '',
       clientCert: context.identity?.clientCert || null,
       principalOrgId: context.identity?.principalOrgId || '',
+      vpcId: context.identity?.vpcId || '',
+      vpceId: context.identity?.vpceId || '',
     },
-    
+
     // Authorizer information
     authorizer: {
       claims: context.authorizer?.claims || {},
@@ -143,10 +196,18 @@ export function createContextProvider(context: ApiGatewayContext): ContextProvid
       messageString: context.error?.messageString || '',
       statusCode: context.error?.statusCode || 0,
     },
-    
+
+    // Request override
+    requestOverride: {
+      header: context.requestOverride?.header || {},
+      querystring: context.requestOverride?.querystring || {},
+      path: context.requestOverride?.path || {},
+    },
+
     // Response override
     responseOverride: {
-      statusCode: context.responseOverride?.statusCode || 0,
+      statusCode: context.responseOverride?.statusCode ?? 0,
+      header: context.responseOverride?.header || {},
     },
   };
 }
