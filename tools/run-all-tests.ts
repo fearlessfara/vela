@@ -9,6 +9,11 @@ const { renderTemplate, DEFAULT_FLAGS } = await import('../index.js' as any);
 
 // APIGW:APIGW Test Runner
 
+// Set fixed timestamp for consistent test results
+if (!process.env.VELA_FIXED_NOW_ISO8601) {
+  process.env.VELA_FIXED_NOW_ISO8601 = '2024-01-01T00:00:00.000Z';
+}
+
 interface TestCase {
   name: string;
   template: string;

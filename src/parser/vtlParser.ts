@@ -52,22 +52,56 @@ import {
 // APIGW:VTL Parser
 
 export class VtlParser extends CstParser {
-  constructor() {
+  private debugMode: boolean = false;
+
+  constructor(debugMode: boolean = false) {
     super(allTokens, {
       recoveryEnabled: true,
     });
-
+    this.debugMode = debugMode;
     this.performSelfAnalysis();
   }
 
   parse(input: string) {
     const lexResult = this.lex(input);
+    
+    if (this.debugMode) {
+      console.log('=== VTL PARSER DEBUG ===');
+      console.log('Input:', input);
+      console.log('\nLexer Result:');
+      if (lexResult.errors.length > 0) {
+        console.log('Lexer errors:');
+        lexResult.errors.forEach(error => console.log(`- ${error.message}`));
+      } else {
+        console.log('Tokens:');
+        lexResult.tokens.forEach((token, i) => {
+          console.log(`${i}: ${token.tokenType.name}: "${token.image}"`);
+        });
+      }
+    }
+    
     if (lexResult.errors.length > 0) {
       return { errors: lexResult.errors, cst: null };
     }
 
     this.input = lexResult.tokens;
     const cst = this.template();
+    
+    if (this.debugMode) {
+      console.log('\nParser Result:');
+      if (this.errors.length > 0) {
+        console.log('Parser errors:');
+        this.errors.forEach(error => {
+          console.log(`- ${error.message}`);
+          console.log(`  Token: ${error.token?.image || 'N/A'}`);
+          console.log(`  Line: ${error.token?.startLine || 'N/A'}, Column: ${error.token?.startColumn || 'N/A'}`);
+        });
+      } else {
+        console.log('Parse successful!');
+        console.log('CST:', JSON.stringify(cst, null, 2));
+      }
+      console.log('=== END DEBUG ===\n');
+    }
     
     return {
       errors: this.errors,
@@ -101,9 +135,6 @@ export class VtlParser extends CstParser {
         GATE: () => {
           const t = this.LA(1).tokenType;
           return t === DollarRef || t === QuietRef || t === InterpStart ||
-                 t === IfDirective || t === ElseIfDirective || t === ElseDirective ||
-                 t === SetDirective || t === ForEachDirective || t === BreakDirective ||
-                 t === StopDirective || t === MacroDirective || t === EndDirective ||
                  t === StringLiteral || t === NumberLiteral || t === BooleanLiteral ||
                  t === NullLiteral || t === Identifier;
         },
