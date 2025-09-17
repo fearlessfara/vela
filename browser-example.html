@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vela VTL Engine - Browser Usage Example</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .example {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            border-left: 4px solid #007bff;
+        }
+        .output {
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 3px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            margin-top: 10px;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left-color: #dc3545;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border-left-color: #28a745;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        textarea {
+            width: 100%;
+            height: 100px;
+            font-family: monospace;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>🚀 Vela VTL Engine - Browser Usage Examples</h1>
+    
+    <div class="container">
+        <h2>📦 CDN Import</h2>
+        <p>Include the Vela VTL Engine using a CDN:</p>
+        <div class="example">
+            <code>&lt;script src="https://unpkg.com/@fearlessfara/vela@latest/dist-browser/vela.umd.js"&gt;&lt;/script&gt;</code>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>🎯 Basic VTL Template</h2>
+        <div class="example">
+            <h4>Template:</h4>
+            <code>Hello $context.requestId! Welcome to $context.stage.</code>
+            <h4>Output:</h4>
+            <div id="basic-output" class="output"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>📄 JSON Template with Variables</h2>
+        <div class="example">
+            <h4>Template:</h4>
+            <code>{"message": "Hello $context.requestId!", "timestamp": "$util.time.nowISO8601()", "stage": "$context.stage"}</code>
+            <h4>Output:</h4>
+            <div id="json-output" class="output"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>🔧 VTL Directives</h2>
+        <div class="example">
+            <h4>Template:</h4>
+            <code>#set($name = "Browser User")<br>#set($items = ["apple", "banana", "cherry"])<br>{"greeting": "Hello $name!", "items": $util.toJson($items), "count": $items.size()}</code>
+            <h4>Output:</h4>
+            <div id="directive-output" class="output"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>🛠️ Utility Functions</h2>
+        <div class="example">
+            <h4>Base64 Encoding/Decoding:</h4>
+            <div id="base64-output" class="output"></div>
+            <h4>URL Encoding/Decoding:</h4>
+            <div id="url-output" class="output"></div>
+            <h4>JavaScript Escaping:</h4>
+            <div id="escape-output" class="output"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>🎮 Interactive Template Tester</h2>
+        <div class="grid">
+            <div>
+                <h4>Template:</h4>
+                <textarea id="template-input" placeholder="Enter your VTL template here...">Hello $context.requestId!</textarea>
+                <br>
+                <button onclick="testTemplate()">Test Template</button>
+                <button onclick="clearOutput()">Clear</button>
+            </div>
+            <div>
+                <h4>Result:</h4>
+                <div id="interactive-output" class="output">Click "Test Template" to see the result</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>🐛 Debug Mode</h2>
+        <div class="example">
+            <h4>Template with Debug:</h4>
+            <code>Hello $context.requestId!</code>
+            <h4>Debug Output (check browser console):</h4>
+            <div id="debug-output" class="output">Debug information will appear in the browser console</div>
+            <button onclick="testDebugMode()">Test Debug Mode</button>
+        </div>
+    </div>
+
+    <!-- Include Vela VTL Engine from CDN -->
+    <script src="https://unpkg.com/@fearlessfara/vela@latest/dist-browser/vela.umd.js"></script>
+    
+    <script>
+        // Sample event data
+        const sampleEvent = {
+            requestContext: { 
+                requestId: 'browser-example-123', 
+                stage: 'production',
+                httpMethod: 'POST'
+            },
+            headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Browser Example)'
+            },
+            body: '{"name": "John Doe", "age": 30}',
+            pathParameters: { id: '456' },
+            queryStringParameters: { page: '1', limit: '10' }
+        };
+
+        // Basic VTL Template
+        function testBasicTemplate() {
+            try {
+                const template = 'Hello $context.requestId! Welcome to $context.stage.';
+                const result = Vela.renderTemplate({
+                    template,
+                    event: sampleEvent,
+                    flags: { APIGW_CONTEXT: 'ON' }
+                });
+                
+                document.getElementById('basic-output').textContent = result.output;
+                document.getElementById('basic-output').className = 'output success';
+            } catch (error) {
+                document.getElementById('basic-output').textContent = `Error: ${error.message}`;
+                document.getElementById('basic-output').className = 'output error';
+            }
+        }
+
+        // JSON Template
+        function testJsonTemplate() {
+            try {
+                const template = '{"message": "Hello $context.requestId!", "timestamp": "$util.time.nowISO8601()", "stage": "$context.stage"}';
+                const result = Vela.renderTemplate({
+                    template,
+                    event: sampleEvent,
+                    flags: { APIGW_CONTEXT: 'ON', APIGW_UTILS: 'ON' }
+                });
+                
+                document.getElementById('json-output').textContent = result.output;
+                document.getElementById('json-output').className = 'output success';
+            } catch (error) {
+                document.getElementById('json-output').textContent = `Error: ${error.message}`;
+                document.getElementById('json-output').className = 'output error';
+            }
+        }
+
+        // VTL Directives
+        function testDirectives() {
+            try {
+                const template = `#set($name = "Browser User")
+#set($items = ["apple", "banana", "cherry"])
+{"greeting": "Hello $name!", "items": $util.toJson($items), "count": $items.size()}`;
+                const result = Vela.renderTemplate({
+                    template,
+                    event: sampleEvent,
+                    flags: { APIGW_UTILS: 'ON' }
+                });
+                
+                document.getElementById('directive-output').textContent = result.output;
+                document.getElementById('directive-output').className = 'output success';
+            } catch (error) {
+                document.getElementById('directive-output').textContent = `Error: ${error.message}`;
+                document.getElementById('directive-output').className = 'output error';
+            }
+        }
+
+        // Utility Functions
+        function testUtilities() {
+            try {
+                const util = Vela.createBrowserUtilProvider();
+                
+                // Base64
+                const text = 'Hello Browser World!';
+                const encoded = util.base64Encode(text);
+                const decoded = util.base64Decode(encoded);
+                
+                document.getElementById('base64-output').textContent = 
+                    `Original: ${text}\nEncoded: ${encoded}\nDecoded: ${decoded}`;
+                
+                // URL
+                const urlText = 'Hello World & More!';
+                const urlEncoded = util.urlEncode(urlText);
+                const urlDecoded = util.urlDecode(urlEncoded);
+                
+                document.getElementById('url-output').textContent = 
+                    `Original: ${urlText}\nEncoded: ${urlEncoded}\nDecoded: ${urlDecoded}`;
+                
+                // JavaScript Escape
+                const jsText = 'Hello "World" with \'quotes\' and \n newlines';
+                const escaped = util.escapeJavaScript(jsText);
+                
+                document.getElementById('escape-output').textContent = 
+                    `Original: ${jsText}\nEscaped: ${escaped}`;
+                
+                // Mark as success
+                ['base64-output', 'url-output', 'escape-output'].forEach(id => {
+                    document.getElementById(id).className = 'output success';
+                });
+            } catch (error) {
+                document.getElementById('base64-output').textContent = `Error: ${error.message}`;
+                document.getElementById('base64-output').className = 'output error';
+            }
+        }
+
+        // Interactive Template Tester
+        function testTemplate() {
+            try {
+                const template = document.getElementById('template-input').value;
+                const result = Vela.renderTemplate({
+                    template,
+                    event: sampleEvent,
+                    flags: { 
+                        APIGW_CONTEXT: 'ON', 
+                        APIGW_UTILS: 'ON',
+                        APIGW_INPUT: 'ON'
+                    }
+                });
+                
+                let output = `Output: ${result.output}\n`;
+                if (result.errors.length > 0) {
+                    output += `Errors: ${result.errors.join(', ')}`;
+                }
+                
+                document.getElementById('interactive-output').textContent = output;
+                document.getElementById('interactive-output').className = 'output success';
+            } catch (error) {
+                document.getElementById('interactive-output').textContent = `Error: ${error.message}`;
+                document.getElementById('interactive-output').className = 'output error';
+            }
+        }
+
+        function clearOutput() {
+            document.getElementById('interactive-output').textContent = 'Click "Test Template" to see the result';
+            document.getElementById('interactive-output').className = 'output';
+        }
+
+        // Debug Mode Test
+        function testDebugMode() {
+            try {
+                const template = 'Hello $context.requestId!';
+                console.log('=== Testing Debug Mode ===');
+                
+                const result = Vela.renderTemplate({
+                    template,
+                    event: sampleEvent,
+                    flags: { APIGW_CONTEXT: 'ON' }
+                }, true); // Enable debug mode
+                
+                document.getElementById('debug-output').textContent = 
+                    `Debug mode enabled! Check the browser console for detailed parsing information.\nOutput: ${result.output}`;
+                document.getElementById('debug-output').className = 'output success';
+            } catch (error) {
+                document.getElementById('debug-output').textContent = `Error: ${error.message}`;
+                document.getElementById('debug-output').className = 'output error';
+            }
+        }
+
+        // Run all examples when page loads
+        window.onload = function() {
+            testBasicTemplate();
+            testJsonTemplate();
+            testDirectives();
+            testUtilities();
+        };
+    </script>
+</body>
+</html>
