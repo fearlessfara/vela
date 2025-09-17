@@ -1,0 +1,10 @@
+---
+alwaysApply: true
+---
+# 95_Do_Not_Do_List
+
+DO NOT
+- Infer behavior from velocity.js legacy; only APIGW + goldens.
+- Replace `$input.json` with a generic JSONPath lib without proof.
+- Normalize header names unless APIGW does.
+- Auto-trim or reformat JSON; keep APIGW escaping/spacing.

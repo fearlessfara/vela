@@ -1,0 +1,21 @@
+---
+alwaysApply: true
+---
+# 25_AST_Evaluator_Contracts
+
+EVALUATOR (MUST)
+- Deterministic visitor. No prototype-chain access.
+- Truthiness per APIGW: null/undefined → false, empty string → false, non-zero numbers → true.
+- Coercions: numeric/string per APIGW behavior (lock with tests).
+
+SCOPES (MUST)
+- Lexical scopes stack; `#set` assigns in nearest scope unless declared behavior differs (test it).
+- `$util/$input/$context` injected via evaluation context only.
+
+OUTPUT (MUST)
+- Use StringBuilder; avoid string concatenation in hot paths.
+- Preserve whitespace and newlines from template.
+
+ERRORS (MUST)
+- Throw typed errors with code: VELA_PARSE, VELA_RUNTIME, VELA_SPEC_VIOLATION.
+- `$util.error/appendError/abort` influence status and message as per APIGW.

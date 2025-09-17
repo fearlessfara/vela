@@ -1,0 +1,24 @@
+---
+alwaysApply: true
+---
+# 30_APIGW_Providers_Contracts
+
+$util (MUST)
+- json, toJson, parseJson, escapeJavaScript, urlEncode/Decode, base64Encode/Decode
+- time: nowISO8601, epochMilli, epochSecond, format (patterns per spec)
+- qr: evaluate arg, return ""
+- error(message, type?, statusCode?)
+- appendError(message, type?, statusCode?, responseTemplate?)
+- abort(message)
+
+$input (MUST)
+- body, bodyBytes, length/size
+- json(path) — APIGW JSONPath subset only; invalid path mirrors APIGW behavior
+- params(), param(name) — precedence: path > querystring > header; headers case-insensitive
+
+$context (MUST)
+- requestId, extendedRequestId, stage, stageVariables.*, httpMethod, path, protocol, domainName, domainPrefix
+- identity.*, authorizer.*, error.*, integrationErrorMessage, responseOverride.*
+
+SELECTION / PASSTHROUGH (MUST)
+- Selection templates rules and “when no template” passthrough identical to APIGW.

@@ -1,0 +1,16 @@
+---
+alwaysApply: true
+---
+# 90_Naming_Conventions
+
+FILES
+- kebab-case for files, camelCase for symbols.
+
+EXPORTS
+- Named exports for modules; no default unless component entry.
+
+TEST IDS
+- tests/conformance/<area>/<case> short, kebab-case.
+
+FLAGS
+- Upper snake: APIGW_UTILS, etc.

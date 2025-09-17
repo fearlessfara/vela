@@ -1,0 +1,12 @@
+---
+alwaysApply: true
+---
+# 70_Error_and_Status_Overrides
+
+BEHAVIOR (MUST)
+- `$util.error` → throw with mapped `{statusCode,type,message}`
+- `$util.appendError` → accumulate; final status override per APIGW
+- `$util.abort` → hard stop, no partial output
+
+TESTS (MUST)
+- Golden cases covering each method and combination precedence.

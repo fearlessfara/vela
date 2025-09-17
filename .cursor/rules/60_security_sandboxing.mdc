@@ -1,0 +1,13 @@
+---
+alwaysApply: true
+---
+# 60_Security_Sandboxing
+
+MUST
+- No access to Object.prototype chain; use `Object.create(null)` for maps.
+- Freeze providers; no dynamic `this` capture.
+- Disallow Function/eval/new Function anywhere.
+- Validate JSONPath input to avoid prototype pollution.
+
+SHOULD
+- Limit recursion depth and template length to configurable caps.

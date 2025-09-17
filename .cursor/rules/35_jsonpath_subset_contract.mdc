@@ -1,0 +1,19 @@
+---
+alwaysApply: true
+---
+# 35_JSONPath_Subset_Contract
+
+SCOPE
+- Implement only the subset used by APIGW `$input.json(path)`.
+
+MUST SUPPORT
+- Root `$`
+- Dot child `$.a.b` and bracket `['a']`
+- Array index `$.a[0]`
+- Basic wildcards `*` where APIGW supports (confirm via goldens)
+
+MUST NOT
+- Implement full JSONPath features (filters, slices) unless goldens prove APIGW supports them.
+
+ERRORS
+- Invalid path formatting: mirror APIGW (null vs error) per goldens.

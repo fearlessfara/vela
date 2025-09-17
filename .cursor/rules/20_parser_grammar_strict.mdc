@@ -1,0 +1,20 @@
+---
+alwaysApply: true
+---
+# 20_Parser_Grammar_Strict (Chevrotain)
+
+GRAMMAR SCOPE (MUST)
+- Text segments
+- Interpolations: `$ref`, `$!ref`, `${expr}`
+- Directives: `#set`, `#if/#elseif/#else`, `#foreach`, `#break`, `#stop`
+- Expressions: literals, member access, calls, arrays, maps, unary/binary ops, ternary
+
+CHEVROTAIN RULES (MUST)
+- No backtracking-heavy design; use LL(k) friendly factoring.
+- Token order: longest-first, keywords before Identifier.
+- Newlines/whitespace preserved where APIGW is sensitive.
+
+PARSING CONTRACTS (MUST)
+- Quiet refs `$!name` render empty string if undefined.
+- Identifiers support dotted access `a.b.c` and indexers `[k]`.
+- String interpolation escapes as APIGW (verify via goldens).

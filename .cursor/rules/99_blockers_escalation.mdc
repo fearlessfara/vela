@@ -1,0 +1,10 @@
+---
+alwaysApply: true
+---
+# 99_Blockers_and_Escalation
+
+IF BLOCKED
+- Add `TODO[APIGW:<section>]` with minimal repro template + expected/actual.
+- Mark status in Deviation Report.
+- Open tracking issue with owner + target date.
+- Do not merge with APIGW_* flag ON if goldens fail or are missing.

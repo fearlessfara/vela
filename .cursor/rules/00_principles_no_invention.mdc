@@ -1,0 +1,23 @@
+---
+alwaysApply: true
+---
+# Vela Rules — 00_Principles_No_Invention
+
+MISSION
+- Build a TS-only APIGW VTL engine (Chevrotain). Exact parity with AWS API Gateway mapping templates.
+- Zero invention. No “smart” simplifications. No hidden refactors.
+
+NON-NEGOTIABLES (MUST)
+- Follow AWS behavior even when counterintuitive.
+- Every change backed by AWS doc section OR captured golden test.
+- Every new/changed file has:
+  1) Header: `/** AWS-SPEC:<section> | OWNER:<name> | STATUS:<WIP|READY> */`
+  2) Breadcrumbs: `// APIGW:<section>` around logic
+  3) Footer: `/* Deviation Report: <bullets> */`
+- Leave `TODO[APIGW:<section>]` for any ambiguity + add failing test.
+
+PROHIBITIONS (MUST NOT)
+- MUST NOT simplify grammar/semantics “for convenience”.
+- MUST NOT reorder observable outputs, escape rules, or whitespace.
+- MUST NOT introduce helpers not present in APIGW surface ($util/$input/$context).
+- MUST NOT delete TODOs to pass CI.

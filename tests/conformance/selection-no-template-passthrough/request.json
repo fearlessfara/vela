@@ -1,0 +1,12 @@
+{
+  "body": "{\"message\": \"Passthrough test\", \"data\": [1, 2, 3]}",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "httpMethod": "POST",
+  "path": "/passthrough",
+  "requestContext": {
+    "requestId": "passthrough-test-101",
+    "stage": "dev"
+  }
+}

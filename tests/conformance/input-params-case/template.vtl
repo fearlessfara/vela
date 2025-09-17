@@ -1,0 +1,6 @@
+{
+  "pathParam": "$input.param('id')",
+  "queryParam": "$input.param('name')",
+  "headerParam": "$input.param('authorization')",
+  "allParams": $util.toJson($input.params())
+}

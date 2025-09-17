@@ -1,0 +1,12 @@
+{
+  "body": "{\"message\": \"Hello from Vela!\"}",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "httpMethod": "POST",
+  "path": "/test",
+  "requestContext": {
+    "requestId": "test-request-123",
+    "stage": "dev"
+  }
+}

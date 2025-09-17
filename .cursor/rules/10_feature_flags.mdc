@@ -1,0 +1,18 @@
+---
+alwaysApply: true
+---
+# 10_Feature_Flags
+
+FLAGS (enum: OFF|DUAL|ON)
+- APIGW_MODE (master)
+- APIGW_UTILS
+- APIGW_INPUT
+- APIGW_CONTEXT
+- APIGW_SELECTION_TEMPLATES
+- APIGW_INTEGRATION_RESP
+- APIGW_LEGACY_COMPAT
+
+USAGE (MUST)
+- Wrap APIGW-specific behavior: `if (flags.APIGW_MODE !== 'OFF')`.
+- DUAL: legacy path available; APIGW path used by tests.
+- Promote to ON only when related goldens pass and no TODO[APIGW] remain.

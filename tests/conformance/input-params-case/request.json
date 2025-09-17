@@ -1,0 +1,18 @@
+{
+  "pathParameters": {
+    "id": "123"
+  },
+  "queryStringParameters": {
+    "name": "test"
+  },
+  "headers": {
+    "Authorization": "Bearer token123",
+    "content-type": "application/json"
+  },
+  "httpMethod": "GET",
+  "path": "/users/{id}",
+  "requestContext": {
+    "requestId": "test-request-456",
+    "stage": "dev"
+  }
+}

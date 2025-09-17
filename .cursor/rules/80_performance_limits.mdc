@@ -1,0 +1,15 @@
+---
+alwaysApply: true
+---
+# 80_Performance_Limits
+
+LIMITS (configurable)
+- Max template length
+- Max recursion/macro depth
+- Max loop iterations per `#foreach`
+- StringBuilder chunk size
+
+MUST
+- Short-circuit boolean ops
+- Avoid quadratic concatenation
+- Cache parsed templates

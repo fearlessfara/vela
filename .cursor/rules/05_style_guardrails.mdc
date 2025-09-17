@@ -1,0 +1,18 @@
+---
+alwaysApply: true
+---
+# 05_Style_Guardrails
+
+TS RULES (MUST)
+- "strict": true; noImplicitAny, noUncheckedIndexedAccess.
+- No ambient `any`. Narrow with type guards.
+- Pure functions where feasible; no global mutable state.
+
+STRUCTURE (SHOULD)
+- Small modules; one responsibility.
+- No broad refactors across modules in a single PR.
+- Use explicit return types on all exported symbols.
+
+COMMENTS (MUST)
+- Link to AWS-SPEC sections at function level.
+- Keep Deviation Report current; list gaps + owner + ETA.

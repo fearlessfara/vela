@@ -1,0 +1,16 @@
+---
+alwaysApply: true
+---
+# 40_Conformance_and_CI
+
+GOLDENS (MUST)
+- tests/conformance/<area>/<case>/{template.vtl,request.json,expected.apigw.txt,notes.md}
+
+TOOLS (MUST)
+- tools/run-apigw.ts — render
+- tools/diff.ts — compare; fail fast on first diff
+
+CI RULES (MUST)
+- If any APIGW_* flag == ON → associated goldens MUST exist and pass.
+- Missing headers/breadcrumbs/Deviation Report → CI fail.
+- Deleting TODOs without closing tests → CI fail.

@@ -1,0 +1,16 @@
+---
+alwaysApply: true
+---
+# 45_Commit_PR_Checklist
+
+PR MUST INCLUDE
+- Changed files list with AWS-SPEC anchors
+- Flags touched/promoted (OFF→DUAL→ON)
+- Golden tests added/updated
+- Deviation Report summary (remaining gaps + owners)
+- Rollback plan
+
+REVIEWER CHECKS
+- No unguarded behavior changes
+- No smart simplifications
+- TODOs left intact unless closed by tests

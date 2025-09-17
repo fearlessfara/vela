@@ -1,0 +1,5 @@
+{
+  "message": $util.toJson($input.json('$.message')),
+  "timestamp": $util.time.nowISO8601(),
+  "encoded": $util.base64Encode("hello world")
+}

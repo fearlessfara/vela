@@ -1,0 +1,25 @@
+{
+  "name": "vela",
+  "version": "0.1.0",
+  "description": "TypeScript API Gateway VTL engine with exact APIGW behavior using Chevrotain",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc && tsc -p tools/tsconfig.json",
+    "build:tools": "tsc -p tools/tsconfig.json",
+    "test": "npm run test:conf",
+    "test:conf": "npm run build && node dist/tools/run-apigw.js",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "chevrotain": "^11.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

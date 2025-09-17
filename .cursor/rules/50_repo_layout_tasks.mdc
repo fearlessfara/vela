@@ -1,0 +1,16 @@
+---
+alwaysApply: true
+---
+# 50_Repo_Layout_Tasks
+
+LAYOUT
+- src/{lexer,parser,runtime,apigw,config,compat}
+- tests/conformance/***
+- tools/{run-apigw.ts,diff.ts,capture-apigw/**}
+- docs/{APIGW_SPEC.md,APIGW_PROGRESS.md}
+
+TASKS (MUST)
+- Scaffold above structure
+- Implement initial tokens, minimal parser, evaluator, providers stubs
+- Add 4 base golden cases
+- Write PROGRESS checklist and keep current

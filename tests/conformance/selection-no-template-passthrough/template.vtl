@@ -1,0 +1,5 @@
+#set($body = $input.json('$'))
+{
+  "statusCode": 200,
+  "body": $util.toJson($body)
+}
