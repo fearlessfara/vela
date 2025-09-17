@@ -7,20 +7,23 @@
   "scripts": {
     "build": "tsc && tsc -p tools/tsconfig.json",
     "build:tools": "tsc -p tools/tsconfig.json",
-    "test": "npm run test:conf",
+    "test": "npm run test:conf && npm run test:unit",
     "test:conf": "npm run build && node dist/tools/run-all-tests.js",
+    "test:unit": "npm run build && node --experimental-vm-modules node_modules/.bin/jest",
     "test:single": "npm run build && node dist/tools/run-apigw.js",
     "dev": "tsc --watch",
     "clean": "rm -rf dist"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
-    "typescript": "^5.0.0"
+    "@types/jest": "^30.0.0",
+    "@types/node": "^22.0.0",
+    "jest": "^30.1.3",
+    "typescript": "^5.9.2"
   },
   "dependencies": {
-    "chevrotain": "^11.0.0"
+    "chevrotain": "^11.0.3"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.0.0"
   }
 }

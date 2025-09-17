@@ -25,8 +25,8 @@ export interface RenderTemplateResult {
 export class VtlEngine {
   private parser: VtlParser;
 
-  constructor() {
-    this.parser = new VtlParser();
+  constructor(debugMode: boolean = false) {
+    this.parser = new VtlParser(debugMode);
   }
 
   renderTemplate(options: RenderTemplateOptions): RenderTemplateResult {
@@ -253,8 +253,8 @@ export class VtlEngine {
 }
 
 // Convenience function for simple template rendering
-export function renderTemplate(options: RenderTemplateOptions): RenderTemplateResult {
-  const engine = new VtlEngine();
+export function renderTemplate(options: RenderTemplateOptions, debugMode: boolean = false): RenderTemplateResult {
+  const engine = new VtlEngine(debugMode);
   return engine.renderTemplate(options);
 }
 
