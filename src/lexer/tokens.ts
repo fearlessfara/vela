@@ -61,13 +61,13 @@ export const InterpStart = createToken({
 export const LCurly = createToken({
   name: 'LCurly',
   pattern: /\{/,
-
+  categories: [AnyTextFragment],
 });
 
 export const RCurly = createToken({
   name: 'RCurly',
   pattern: /\}/,
-
+  categories: [AnyTextFragment],
 });
 
 export const LParen = createToken({
@@ -85,13 +85,13 @@ export const RParen = createToken({
 export const LBracket = createToken({
   name: 'LBracket',
   pattern: /\[/,
-
+  categories: [AnyTextFragment],
 });
 
 export const RBracket = createToken({
   name: 'RBracket',
   pattern: /\]/,
-
+  categories: [AnyTextFragment],
 });
 
 export const Dot = createToken({
@@ -103,13 +103,13 @@ export const Dot = createToken({
 export const Comma = createToken({
   name: 'Comma',
   pattern: /,/,
-
+  categories: [AnyTextFragment],
 });
 
 export const Colon = createToken({
   name: 'Colon',
   pattern: /:/,
-
+  categories: [AnyTextFragment],
 });
 
 export const Semicolon = createToken({
@@ -337,8 +337,8 @@ export const Whitespace = createToken({
 export const Newline = createToken({
   name: 'Newline',
   pattern: /\r?\n/,
-  group: Lexer.SKIPPED,
   line_breaks: true,
+  categories: [AnyTextFragment],
 });
 
 // Token list in proper order (longer before shorter, keywords before Identifier)

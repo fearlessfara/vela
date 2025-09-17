@@ -31,6 +31,11 @@ export interface UtilProvider {
 }
 
 export function createUtilProvider(): UtilProvider {
+  const fixedIso = process.env.VELA_FIXED_NOW_ISO8601;
+  const fixedMillis = fixedIso ? Date.parse(fixedIso) : NaN;
+  const hasFixedTime = Number.isFinite(fixedMillis);
+  const fixedIsoNormalized = hasFixedTime ? new Date(fixedMillis).toISOString() : undefined;
+
   return {
     // JSON operations
     json(value: any): string {
@@ -107,20 +112,27 @@ export function createUtilProvider(): UtilProvider {
     // Time operations
     time: {
       nowISO8601(): string {
+        if (hasFixedTime && fixedIsoNormalized) {
+          return fixedIsoNormalized;
+        }
         return new Date().toISOString();
       },
 
       epochMilli(): number {
+        if (hasFixedTime) {
+          return fixedMillis as number;
+        }
         return Date.now();
       },
 
       epochSecond(): number {
-        return Math.floor(Date.now() / 1000);
+        const millis = hasFixedTime ? (fixedMillis as number) : Date.now();
+        return Math.floor(millis / 1000);
       },
 
       format(template: string, time?: Date): string {
-        const date = time || new Date();
-        
+        const date = time || (hasFixedTime ? new Date(fixedMillis as number) : new Date());
+
         // Simple template formatting - APIGW uses a subset of Java SimpleDateFormat
         return template
           .replace(/yyyy/g, date.getFullYear().toString())

@@ -21,6 +21,7 @@ import {
   ArrayAccess,
   ObjectLiteral,
   ArrayLiteral,
+  BinaryOperator,
   UnaryOperator,
   Position,
   SourceLocation,
@@ -515,19 +516,16 @@ function equalityToAst(equality: CstNode): Expression {
   let expr: Expression = relationalToAst(relationals[0] as CstNode);
   const ops = ([...(equality.children.Eq || []), ...(equality.children.Ne || [])] as any[])
     .sort((a, b) => (a.startOffset ?? 0) - (b.startOffset ?? 0))
-    .map(t => t.image)
-    .filter((op): op is '==' | '!=' => op === '==' || op === '!=');
+    .map(t => t.image as '==' | '!=') as Array<'==' | '!='>;
   for (let i = 0; i < ops.length; i++) {
-    const op = ops[i];
-    if (op === '==' || op === '!=') {
-      expr = {
-        type: 'BinaryOperation',
-        operator: op,
-        left: expr,
-        right: relationalToAst(relationals[i + 1] as CstNode),
-        location: getLocation(equality),
-      };
-    }
+    const operator = ops[i]! as BinaryOperator;
+    expr = {
+      type: 'BinaryOperation',
+      operator,
+      left: expr,
+      right: relationalToAst(relationals[i + 1] as CstNode),
+      location: getLocation(equality),
+    };
   }
   return expr;
 }
@@ -542,19 +540,16 @@ function relationalToAst(relational: CstNode): Expression {
     ...(relational.children.Ge || []),
   ] as any[])
     .sort((a, b) => (a.startOffset ?? 0) - (b.startOffset ?? 0))
-    .map(t => t.image)
-    .filter((op): op is '<' | '<=' | '>' | '>=' => op === '<' || op === '<=' || op === '>' || op === '>=');
+    .map(t => t.image as '<' | '<=' | '>' | '>=') as Array<'<' | '<=' | '>' | '>='>;
   for (let i = 0; i < ops.length; i++) {
-    const op = ops[i];
-    if (op === '<' || op === '<=' || op === '>' || op === '>=') {
-      expr = {
-        type: 'BinaryOperation',
-        operator: op,
-        left: expr,
-        right: additiveToAst(additives[i + 1] as CstNode),
-        location: getLocation(relational),
-      };
-    }
+    const operator = ops[i]! as BinaryOperator;
+    expr = {
+      type: 'BinaryOperation',
+      operator,
+      left: expr,
+      right: additiveToAst(additives[i + 1] as CstNode),
+      location: getLocation(relational),
+    };
   }
   return expr;
 }
@@ -564,19 +559,16 @@ function additiveToAst(additive: CstNode): Expression {
   let expr: Expression = multiplicativeToAst(multiplicatives[0] as CstNode);
   const ops = ([...(additive.children.Plus || []), ...(additive.children.Minus || [])] as any[])
     .sort((a, b) => (a.startOffset ?? 0) - (b.startOffset ?? 0))
-    .map(t => t.image)
-    .filter((op): op is '+' | '-' => op === '+' || op === '-');
+    .map(t => t.image as '+' | '-') as Array<'+' | '-'>;
   for (let i = 0; i < ops.length; i++) {
-    const op = ops[i];
-    if (op === '+' || op === '-') {
-      expr = {
-        type: 'BinaryOperation',
-        operator: op,
-        left: expr,
-        right: multiplicativeToAst(multiplicatives[i + 1] as CstNode),
-        location: getLocation(additive),
-      };
-    }
+    const operator = ops[i]! as BinaryOperator;
+    expr = {
+      type: 'BinaryOperation',
+      operator,
+      left: expr,
+      right: multiplicativeToAst(multiplicatives[i + 1] as CstNode),
+      location: getLocation(additive),
+    };
   }
   return expr;
 }
@@ -590,19 +582,16 @@ function multiplicativeToAst(multiplicative: CstNode): Expression {
     ...(multiplicative.children.Mod || []),
   ] as any[])
     .sort((a, b) => (a.startOffset ?? 0) - (b.startOffset ?? 0))
-    .map(t => t.image)
-    .filter((op): op is '*' | '/' | '%' => op === '*' || op === '/' || op === '%');
+    .map(t => t.image as '*' | '/' | '%') as Array<'*' | '/' | '%'>;
   for (let i = 0; i < ops.length; i++) {
-    const op = ops[i];
-    if (op === '*' || op === '/' || op === '%') {
-      expr = {
-        type: 'BinaryOperation',
-        operator: op,
-        left: expr,
-        right: unaryToAst(unaries[i + 1] as CstNode),
-        location: getLocation(multiplicative),
-      };
-    }
+    const operator = ops[i]! as BinaryOperator;
+    expr = {
+      type: 'BinaryOperation',
+      operator,
+      left: expr,
+      right: unaryToAst(unaries[i + 1] as CstNode),
+      location: getLocation(multiplicative),
+    };
   }
   return expr;
 }
@@ -670,7 +659,6 @@ function primaryBaseToAst(pb: CstNode): Expression {
   if (c.expression) return expressionToAst(c.expression[0] as CstNode);
   throw new Error('Invalid primaryBase');
 }
-
 
 function getUnaryOperator(node: CstNode): UnaryOperator {
   if (node.children.Not?.[0]) return '!';
