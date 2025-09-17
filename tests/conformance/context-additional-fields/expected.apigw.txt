@@ -1,0 +1,18 @@
+{
+  "accountId": "123456789012",
+  "apiId": "api-abc",
+  "awsEndpointRequestId": "aws-endpoint-789",
+  "domainPrefix": "example",
+  "deploymentId": "deployment-1",
+  "resourceId": "res-001",
+  "resourcePath": "/resource",
+  "requestTime": "12/Dec/2024:12:34:56 +0000",
+  "requestTimeEpoch": 1734002096000,
+  "stageVariables": {"env":"prod"},
+  "requestOverride": {"header":{"X-Test":"test-header"},"querystring":{"foo":"bar"},"path":{"id":"123"}},
+  "responseOverride": {"statusCode":202,"header":{"Content-Type":"application/json"}},
+  "wafResponseCode": 200,
+  "webaclArn": "arn:aws:wafv2:us-east-1:123456789012:regional/webacl/test/abc",
+  "identityVpcId": "vpc-123",
+  "identityVpceId": "vpce-123"
+}
