@@ -516,11 +516,12 @@ function equalityToAst(equality: CstNode): Expression {
   let expr: Expression = relationalToAst(relationals[0] as CstNode);
   const ops = ([...(equality.children.Eq || []), ...(equality.children.Ne || [])] as any[])
     .sort((a, b) => (a.startOffset ?? 0) - (b.startOffset ?? 0))
-    .map(t => t.image as '==' | '!=');
+    .map(t => t.image as '==' | '!=') as Array<'==' | '!='>;
   for (let i = 0; i < ops.length; i++) {
+    const operator = ops[i]! as BinaryOperator;
     expr = {
       type: 'BinaryOperation',
-      operator: ops[i],
+      operator,
       left: expr,
       right: relationalToAst(relationals[i + 1] as CstNode),
       location: getLocation(equality),
@@ -539,11 +540,12 @@ function relationalToAst(relational: CstNode): Expression {
     ...(relational.children.Ge || []),
   ] as any[])
     .sort((a, b) => (a.startOffset ?? 0) - (b.startOffset ?? 0))
-    .map(t => t.image as '<' | '<=' | '>' | '>=');
+    .map(t => t.image as '<' | '<=' | '>' | '>=') as Array<'<' | '<=' | '>' | '>='>;
   for (let i = 0; i < ops.length; i++) {
+    const operator = ops[i]! as BinaryOperator;
     expr = {
       type: 'BinaryOperation',
-      operator: ops[i],
+      operator,
       left: expr,
       right: additiveToAst(additives[i + 1] as CstNode),
       location: getLocation(relational),
@@ -557,11 +559,12 @@ function additiveToAst(additive: CstNode): Expression {
   let expr: Expression = multiplicativeToAst(multiplicatives[0] as CstNode);
   const ops = ([...(additive.children.Plus || []), ...(additive.children.Minus || [])] as any[])
     .sort((a, b) => (a.startOffset ?? 0) - (b.startOffset ?? 0))
-    .map(t => t.image as '+' | '-');
+    .map(t => t.image as '+' | '-') as Array<'+' | '-'>;
   for (let i = 0; i < ops.length; i++) {
+    const operator = ops[i]! as BinaryOperator;
     expr = {
       type: 'BinaryOperation',
-      operator: ops[i],
+      operator,
       left: expr,
       right: multiplicativeToAst(multiplicatives[i + 1] as CstNode),
       location: getLocation(additive),
@@ -579,11 +582,12 @@ function multiplicativeToAst(multiplicative: CstNode): Expression {
     ...(multiplicative.children.Mod || []),
   ] as any[])
     .sort((a, b) => (a.startOffset ?? 0) - (b.startOffset ?? 0))
-    .map(t => t.image as '*' | '/' | '%');
+    .map(t => t.image as '*' | '/' | '%') as Array<'*' | '/' | '%'>;
   for (let i = 0; i < ops.length; i++) {
+    const operator = ops[i]! as BinaryOperator;
     expr = {
       type: 'BinaryOperation',
-      operator: ops[i],
+      operator,
       left: expr,
       right: unaryToAst(unaries[i + 1] as CstNode),
       location: getLocation(multiplicative),
@@ -654,21 +658,6 @@ function primaryBaseToAst(pb: CstNode): Expression {
   if (c.arrayLiteral) return arrayLiteralToAst(c.arrayLiteral[0] as CstNode);
   if (c.expression) return expressionToAst(c.expression[0] as CstNode);
   throw new Error('Invalid primaryBase');
-}
-
-function getRelationalOperator(node: CstNode, index: number): BinaryOperator {
-  if (node.children.Lt?.[index]) return '<';
-  if (node.children.Le?.[index]) return '<=';
-  if (node.children.Gt?.[index]) return '>';
-  if (node.children.Ge?.[index]) return '>=';
-  throw new Error('Invalid relational operator');
-}
-
-function getMultiplicativeOperator(node: CstNode, index: number): BinaryOperator {
-  if (node.children.Star?.[index]) return '*';
-  if (node.children.Slash?.[index]) return '/';
-  if (node.children.Mod?.[index]) return '%';
-  throw new Error('Invalid multiplicative operator');
 }
 
 function getUnaryOperator(node: CstNode): UnaryOperator {

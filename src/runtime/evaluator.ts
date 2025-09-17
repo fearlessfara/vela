@@ -39,6 +39,7 @@ export class VtlEvaluator {
   private context: EvaluationContext;
   private shouldStop: boolean;
   private shouldBreak: boolean;
+  private jsonOutputMode: boolean;
 
   constructor(context: EvaluationContext) {
     this.scopeManager = new ScopeManager();
@@ -46,12 +47,17 @@ export class VtlEvaluator {
     this.context = context;
     this.shouldStop = false;
     this.shouldBreak = false;
+    this.jsonOutputMode = false;
   }
 
   evaluateTemplate(template: Template): string {
     this.stringBuilder.clear();
     this.shouldStop = false;
     this.shouldBreak = false;
+
+    this.scopeManager.clear();
+    this.initializeGlobalScope();
+    this.jsonOutputMode = this.detectJsonTemplate(template);
 
     for (const segment of template.segments) {
       if (this.shouldStop) {
@@ -102,7 +108,7 @@ export class VtlEvaluator {
 
   private evaluateInterpolation(interp: Interpolation): void {
     const value = this.evaluateExpression(interp.expression);
-    this.stringBuilder.append(value);
+    this.appendInterpolatedValue(value);
   }
 
   private evaluateIfDirective(ifDirective: IfDirective): void {
@@ -216,8 +222,13 @@ export class VtlEvaluator {
 
   private evaluateVariableReference(ref: VariableReference): any {
     const value = this.scopeManager.getVariable(ref.name);
-    
+
     if (value === undefined) {
+      const provider = this.getBuiltInProvider(ref.name);
+      if (provider !== undefined) {
+        return provider;
+      }
+
       if (ref.quiet) {
         return '';
       }
@@ -230,15 +241,19 @@ export class VtlEvaluator {
 
   private evaluateMemberAccess(member: MemberAccess): any {
     const object = this.evaluateExpression(member.object);
-    
+
     if (object === null || object === undefined) {
       return '';
     }
-    
+
     if (typeof object === 'object' && object !== null) {
-      return object[member.property] || '';
+      const value = (object as any)[member.property];
+      if (typeof value === 'function') {
+        return value.bind(object);
+      }
+      return value !== undefined ? value : '';
     }
-    
+
     return '';
   }
 
@@ -379,6 +394,114 @@ export class VtlEvaluator {
       return this.context.context[method](...args);
     }
     return '';
+  }
+
+  private appendInterpolatedValue(value: any): void {
+    const normalized = this.normalizeInterpolatedValue(value);
+    if (normalized === null || normalized === undefined) {
+      return;
+    }
+
+    if (typeof normalized === 'string') {
+      this.stringBuilder.appendString(normalized);
+      return;
+    }
+
+    this.stringBuilder.append(normalized);
+  }
+
+  private normalizeInterpolatedValue(value: any): any {
+    if (value === null || value === undefined) {
+      return value;
+    }
+
+    if (this.jsonOutputMode && typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!this.isJsonLiteral(trimmed)) {
+        return JSON.stringify(value);
+      }
+      return value;
+    }
+
+    return value;
+  }
+
+  private isJsonLiteral(value: string): boolean {
+    if (value.length === 0) {
+      return false;
+    }
+
+    const first = value[0];
+    const last = value[value.length - 1];
+    if ((first === '"' && last === '"') || (first === '{' && last === '}') || (first === '[' && last === ']')) {
+      return true;
+    }
+
+    if (value === 'true' || value === 'false' || value === 'null') {
+      return true;
+    }
+
+    if (!Number.isNaN(Number(value))) {
+      return true;
+    }
+
+    return false;
+  }
+
+  private detectJsonTemplate(template: Template): boolean {
+    for (const segment of template.segments) {
+      if (segment.type !== 'Text') {
+        return false;
+      }
+
+      const trimmed = segment.value.trim();
+      if (trimmed.length === 0) {
+        continue;
+      }
+
+      const first = trimmed[0];
+      return first === '{' || first === '[';
+    }
+
+    return false;
+  }
+
+  private initializeGlobalScope(): void {
+    const util = this.getBuiltInProvider('util');
+    if (util !== undefined) {
+      this.scopeManager.setVariable('util', util);
+    }
+
+    const input = this.getBuiltInProvider('input');
+    if (input !== undefined) {
+      this.scopeManager.setVariable('input', input);
+    }
+
+    const context = this.getBuiltInProvider('context');
+    if (context !== undefined) {
+      this.scopeManager.setVariable('context', context);
+    }
+  }
+
+  private getBuiltInProvider(name: string): any {
+    switch (name) {
+      case 'util':
+        if (isFlagEnabled(this.context.flags, 'APIGW_UTILS')) {
+          return this.context.util;
+        }
+        break;
+      case 'input':
+        if (isFlagEnabled(this.context.flags, 'APIGW_INPUT')) {
+          return this.context.input;
+        }
+        break;
+      case 'context':
+        if (isFlagEnabled(this.context.flags, 'APIGW_CONTEXT')) {
+          return this.context.context;
+        }
+        break;
+    }
+    return undefined;
   }
 }
 
