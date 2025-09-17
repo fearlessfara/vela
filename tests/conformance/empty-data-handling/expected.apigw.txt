@@ -1,0 +1,13 @@
+{
+  "status": "success",
+  "requestId": "test-request-123",
+  "timestamp": "2024-01-01T00:00:00.000Z",
+  "photos": [],
+  "pagination": {
+    "currentPage": 1,
+    "totalPages": 0,
+    "perPage": 100,
+    "totalPhotos": 0
+  },
+  "message": "No photos found for the specified criteria"
+}

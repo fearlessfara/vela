@@ -40,6 +40,9 @@ export function createUtilProvider(): UtilProvider {
     // JSON operations
     json(value: any): string {
       try {
+        if (value === undefined) {
+          return 'null';
+        }
         return JSON.stringify(value);
       } catch {
         return 'null';
@@ -69,6 +72,10 @@ export function createUtilProvider(): UtilProvider {
 
     base64Decode(value: string): string {
       try {
+        // Check if the string is valid base64
+        if (!/^[A-Za-z0-9+/]*={0,2}$/.test(value)) {
+          return '';
+        }
         return Buffer.from(value, 'base64').toString('utf8');
       } catch {
         return '';
@@ -104,7 +111,7 @@ export function createUtilProvider(): UtilProvider {
         .replace(/\r/g, '\\r')
         .replace(/\t/g, '\\t')
         .replace(/\f/g, '\\f')
-        .replace(/\b/g, '\\b')
+        .replace(/\u0008/g, '\\b')  // Use Unicode escape for backspace
         .replace(/\v/g, '\\v')
         .replace(/\0/g, '\\0');
     },

@@ -1,0 +1,30 @@
+{
+  "json": $util.json({
+    "string": "hello",
+    "number": 123,
+    "boolean": true,
+    "null": null,
+    "array": [1, 2, 3],
+    "object": {"nested": "value"}
+  }),
+  "parseJson": $util.parseJson('{"name":"John","age":30}'),
+  "toJson": $util.toJson({
+    "name": "Jane",
+    "age": 25
+  }),
+  "base64Encode": "$util.base64Encode('Hello, World!')",
+  "base64Decode": "$util.base64Decode('SGVsbG8sIFdvcmxkIQ==')",
+  "urlEncode": "$util.urlEncode('Hello, World! & More')",
+  "urlDecode": "$util.urlDecode('Hello%2C%20World%21%20%26%20More')",
+  "escapeJavaScript": "$util.escapeJavaScript('Hello \"World\" and \\'Single\\' quotes')",
+  "time": {
+    "nowISO8601": "$util.time.nowISO8601()",
+    "epochMilli": $util.time.epochMilli(),
+    "epochSecond": $util.time.epochSecond(),
+    "format": "$util.time.format('yyyy-MM-dd HH:mm:ss.SSS', $util.parseJson('\"2023-12-25T12:30:45.123Z\"'))"
+  },
+  "qr": "$util.qr('test data')",
+  "error": "VTL Error: Test error (Status: 400)",
+  "appendError": "VTL Error: Test error (Status: 500)",
+  "abort": "VTL Abort: Test abort (Status: 500)"
+}

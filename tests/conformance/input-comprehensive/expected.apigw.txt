@@ -1,0 +1,69 @@
+{
+  "body": "{\"title\":\"Test Post\",\"content\":\"This is a test post content\",\"tags\":[\"test\",\"api\"],\"metadata\":{\"author\":\"John Doe\",\"created\":\"2023-12-25T12:00:00Z\",\"version\":1}}",
+  "bodyBytes": "eyJ0aXRsZSI6IlRlc3QgUG9zdCIsImNvbnRlbnQiOiJUaGlzIGlzIGEgdGVzdCBwb3N0IGNvbnRlbnQiLCJ0YWdzIjpbInRlc3QiLCJhcGkiXSwibWV0YWRhdGEiOnsiYXV0aG9yIjoiSm9obiBEb2UiLCJjcmVhdGVkIjoiMjAyMy0xMi0yNVQxMjowMDowMFoiLCJ2ZXJzaW9uIjoxfX0=",
+  "json": {
+    "title": "Test Post",
+    "content": "This is a test post content",
+    "tags": ["test", "api"],
+    "metadata": {
+      "author": "John Doe",
+      "created": "2023-12-25T12:00:00Z",
+      "version": 1
+    }
+  },
+  "jsonPath": {
+    "title": "Test Post",
+    "content": "This is a test post content",
+    "tags": ["test", "api"],
+    "metadata": {
+      "author": "John Doe",
+      "created": "2023-12-25T12:00:00Z",
+      "version": 1
+    }
+  },
+  "jsonPathTitle": "Test Post",
+  "jsonPathContent": "This is a test post content",
+  "jsonPathTags": ["test", "api"],
+  "jsonPathFirstTag": "test",
+  "jsonPathSecondTag": "api",
+  "jsonPathAuthor": "John Doe",
+  "jsonPathVersion": 1,
+  "params": {
+    "userId": "user123",
+    "include": "metadata",
+    "format": "json",
+    "version": "v1",
+    "content-type": "application/json",
+    "authorization": "Bearer token123",
+    "x-request-id": "req-123"
+  },
+  "paramUserId": "user123",
+  "paramInclude": "metadata",
+  "paramFormat": "json",
+  "paramVersion": "v1",
+  "paramContentType": "application/json",
+  "paramAuthorization": "Bearer token123",
+  "paramXRequestId": "req-123",
+  "headers": {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer token123",
+    "X-Request-ID": "req-123",
+    "User-Agent": "Mozilla/5.0 (compatible; API Gateway)"
+  },
+  "headerContentType": "application/json",
+  "headerAuthorization": "Bearer token123",
+  "headerXRequestId": "req-123",
+  "headerUserAgent": "Mozilla/5.0 (compatible; API Gateway)",
+  "paths": {
+    "userId": "user123"
+  },
+  "pathUserId": "user123",
+  "querystrings": {
+    "include": "metadata",
+    "format": "json",
+    "version": "v1"
+  },
+  "querystringInclude": "metadata",
+  "querystringFormat": "json",
+  "querystringVersion": "v1"
+}

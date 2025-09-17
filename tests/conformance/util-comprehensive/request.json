@@ -1,0 +1,21 @@
+{
+  "body": "{\"test\": \"data\"}",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "pathParameters": {},
+  "queryStringParameters": {},
+  "requestContext": {
+    "requestId": "test-request-123",
+    "httpMethod": "POST",
+    "path": "/test",
+    "protocol": "HTTP/1.1",
+    "stage": "test",
+    "domainName": "api.example.com"
+  },
+  "httpMethod": "POST",
+  "path": "/test",
+  "resource": "/test",
+  "stage": "test",
+  "stageVariables": {}
+}
