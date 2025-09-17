@@ -1,0 +1,15 @@
+# Keep the compiled output in the published package even though it is git-ignored.
+!dist/
+
+# Exclude development-only sources and assets from the npm tarball.
+src/
+docs/
+tests/
+tools/
+debug-test/
+*.tsbuildinfo
+
+# Logs and coverage artifacts are not needed in published packages.
+*.log
+coverage/
+.nyc_output/
