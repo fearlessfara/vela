@@ -1,0 +1,87 @@
+{
+  "requestId": "$context.requestId",
+  "extendedRequestId": "$context.extendedRequestId",
+  "awsEndpointRequestId": "$context.awsEndpointRequestId",
+  "accountId": "$context.accountId",
+  "apiId": "$context.apiId",
+  "httpMethod": "$context.httpMethod",
+  "path": "$context.path",
+  "protocol": "$context.protocol",
+  "stage": "$context.stage",
+  "domainName": "$context.domainName",
+  "domainPrefix": "$context.domainPrefix",
+  "deploymentId": "$context.deploymentId",
+  "resourceId": "$context.resourceId",
+  "resourcePath": "$context.resourcePath",
+  "requestTime": "$context.requestTime",
+  "requestTimeEpoch": $context.requestTimeEpoch,
+  "wafResponseCode": $context.wafResponseCode,
+  "webaclArn": "$context.webaclArn",
+  "stageVariables": {
+    "dbHost": "$context.stageVariables.dbHost",
+    "dbPort": "$context.stageVariables.dbPort",
+    "apiVersion": "$context.stageVariables.apiVersion"
+  },
+  "identity": {
+    "sourceIp": "$context.identity.sourceIp",
+    "userAgent": "$context.identity.userAgent",
+    "user": "$context.identity.user",
+    "userArn": "$context.identity.userArn",
+    "cognitoIdentityId": "$context.identity.cognitoIdentityId",
+    "cognitoIdentityPoolId": "$context.identity.cognitoIdentityPoolId",
+    "accountId": "$context.identity.accountId",
+    "apiKey": "$context.identity.apiKey",
+    "apiKeyId": "$context.identity.apiKeyId",
+    "caller": "$context.identity.caller",
+    "accessKey": "$context.identity.accessKey",
+    "cognitoAuthenticationType": "$context.identity.cognitoAuthenticationType",
+    "cognitoAuthenticationProvider": "$context.identity.cognitoAuthenticationProvider",
+    "userAgentV2": "$context.identity.userAgentV2",
+    "clientCert": {
+      "clientCertPem": "$context.identity.clientCert.clientCertPem",
+      "subjectDN": "$context.identity.clientCert.subjectDN",
+      "issuerDN": "$context.identity.clientCert.issuerDN",
+      "serialNumber": "$context.identity.clientCert.serialNumber",
+      "validity": {
+        "notBefore": "$context.identity.clientCert.validity.notBefore",
+        "notAfter": "$context.identity.clientCert.validity.notAfter"
+      }
+    },
+    "principalOrgId": "$context.identity.principalOrgId",
+    "vpcId": "$context.identity.vpcId",
+    "vpceId": "$context.identity.vpceId"
+  },
+  "authorizer": {
+    "claims": {
+      "sub": "$context.authorizer.claims.sub",
+      "email": "$context.authorizer.claims.email",
+      "cognito:groups": $context.authorizer.claims['cognito:groups'],
+      "custom:department": "$context.authorizer.claims['custom:department']"
+    },
+    "scopes": $context.authorizer.scopes,
+    "principalId": "$context.authorizer.principalId",
+    "integrationLatency": $context.authorizer.integrationLatency
+  },
+  "error": {
+    "message": "$context.error.message",
+    "messageString": "$context.error.messageString",
+    "statusCode": $context.error.statusCode
+  },
+  "requestOverride": {
+    "header": {
+      "X-Custom-Header": "$context.requestOverride.header.X-Custom-Header"
+    },
+    "querystring": {
+      "custom-param": "$context.requestOverride.querystring.custom-param"
+    },
+    "path": {
+      "custom-path": "$context.requestOverride.path.custom-path"
+    }
+  },
+  "responseOverride": {
+    "statusCode": $context.responseOverride.statusCode,
+    "header": {
+      "X-Custom-Response-Header": "$context.responseOverride.header.X-Custom-Response-Header"
+    }
+  }
+}

@@ -26,7 +26,6 @@ export interface UtilProvider {
   };
   
   // Utility functions
-  qr(value: any): string;
   error(message: string, statusCode?: number): never;
   appendError(message: string, statusCode?: number): void;
   abort(message: string, statusCode?: number): never;
@@ -158,11 +157,6 @@ export function createUtilProvider(): UtilProvider {
     },
 
     // Utility functions
-    qr(value: any): string {
-      // QR code generation - stub implementation
-      return `QR:${JSON.stringify(value)}`;
-    },
-
     error(message: string, statusCode: number = 500): never {
       throw new Error(`VTL Error: ${message} (Status: ${statusCode})`);
     },

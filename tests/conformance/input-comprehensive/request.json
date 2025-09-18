@@ -1,0 +1,42 @@
+{
+  "body": "{\"title\":\"Test Post\",\"content\":\"This is a test post content\",\"tags\":[\"test\",\"api\"],\"metadata\":{\"author\":\"John Doe\",\"created\":\"2023-12-25T12:00:00Z\",\"version\":1}}",
+  "headers": {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer token123",
+    "X-Request-ID": "req-123",
+    "User-Agent": "Mozilla/5.0 (compatible; API Gateway)"
+  },
+  "pathParameters": {
+    "userId": "user123"
+  },
+  "queryStringParameters": {
+    "include": "metadata",
+    "format": "json",
+    "version": "v1"
+  },
+  "multiValueHeaders": {
+    "Content-Type": ["application/json"],
+    "Authorization": ["Bearer token123"]
+  },
+  "multiValueQueryStringParameters": {
+    "include": ["metadata", "tags"],
+    "format": ["json"]
+  },
+  "requestContext": {
+    "requestId": "test-request-123",
+    "httpMethod": "POST",
+    "path": "/users/{userId}/posts",
+    "protocol": "HTTP/1.1",
+    "stage": "prod",
+    "domainName": "api.example.com"
+  },
+  "httpMethod": "POST",
+  "path": "/users/{userId}/posts",
+  "resource": "/users/{userId}/posts",
+  "stage": "prod",
+  "stageVariables": {
+    "dbHost": "localhost",
+    "dbPort": "5432",
+    "apiVersion": "v1"
+  }
+}

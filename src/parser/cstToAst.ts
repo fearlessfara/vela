@@ -21,6 +21,7 @@ import {
   ArrayAccess,
   ObjectLiteral,
   ArrayLiteral,
+  RangeLiteral,
   BinaryOperator,
   UnaryOperator,
   Position,
@@ -233,13 +234,22 @@ function setDirectiveToAst(setDirective: CstNode): SetDirective {
 function forEachDirectiveToAst(forEachDirective: CstNode): ForEachDirective {
   const raw = (forEachDirective.children.variable![0] as any).image as string;
   const name = raw.startsWith('$!') ? raw.slice(2) : raw.startsWith('$') ? raw.slice(1) : raw;
-  return {
+  const result: ForEachDirective = {
     type: 'ForEachDirective',
     variable: name,
     iterable: expressionToAst(forEachDirective.children.iterable![0] as CstNode),
     body: forEachDirective.children.body?.map(segmentToAst) || [],
     location: getLocation(forEachDirective),
   };
+  
+  if (forEachDirective.children.elseBody && forEachDirective.children.elseBody.length > 0) {
+    const elseBodyNode = forEachDirective.children.elseBody[0] as CstNode;
+    if (elseBodyNode.children.elseBodySegment && elseBodyNode.children.elseBodySegment.length > 0) {
+      result.elseBody = elseBodyNode.children.elseBodySegment.map(segmentToAst);
+    }
+  }
+  
+  return result;
 }
 
 function breakDirectiveToAst(breakDirective: CstNode): BreakDirective {
@@ -461,7 +471,21 @@ function objectLiteralToAst(obj: CstNode): ObjectLiteral {
   };
 }
 
-function arrayLiteralToAst(arr: CstNode): ArrayLiteral {
+function arrayLiteralToAst(arr: CstNode): ArrayLiteral | RangeLiteral {
+  // Check if this is a range literal [1..3]
+  if (arr.children.start && arr.children.rangeOperator && arr.children.end) {
+    const start = parseInt((arr.children.start[0] as any).image);
+    const end = parseInt((arr.children.end[0] as any).image);
+    
+    return {
+      type: 'RangeLiteral',
+      start,
+      end,
+      location: getLocation(arr),
+    };
+  }
+  
+  // Regular array literal
   const elements = arr.children.expression?.map(expr => expressionToAst(expr as CstNode)) || [];
 
   return {
@@ -470,6 +494,7 @@ function arrayLiteralToAst(arr: CstNode): ArrayLiteral {
     location: getLocation(arr),
   };
 }
+
 
 
 function logicalOrToAst(logicalOr: CstNode): Expression {

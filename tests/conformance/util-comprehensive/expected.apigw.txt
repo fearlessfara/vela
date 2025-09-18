@@ -1,0 +1,32 @@
+{
+  "json": {
+    "string": "hello",
+    "number": 123,
+    "boolean": true,
+    "null": null,
+    "array": [1, 2, 3],
+    "object": {"nested": "value"}
+  },
+  "parseJson": {
+    "name": "John",
+    "age": 30
+  },
+  "toJson": {
+    "name": "Jane",
+    "age": 25
+  },
+  "base64Encode": "SGVsbG8sIFdvcmxkIQ==",
+  "base64Decode": "Hello, World!",
+  "urlEncode": "Hello%2C%20World%21%20%26%20More",
+  "urlDecode": "Hello, World! & More",
+  "escapeJavaScript": "Hello \\\"World\\\" and \\'Single\\' quotes",
+  "time": {
+    "nowISO8601": "2023-12-25T12:00:00.000Z",
+    "epochMilli": 1703510400000,
+    "epochSecond": 1703510400,
+    "format": "2023-12-25 12:30:45.123"
+  },
+  "error": "VTL Error: Test error (Status: 400)",
+  "appendError": "VTL Error: Test error (Status: 500)",
+  "abort": "VTL Abort: Test abort (Status: 500)"
+}

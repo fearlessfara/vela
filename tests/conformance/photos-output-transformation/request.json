@@ -1,0 +1,22 @@
+{
+  "photos": [
+    {
+      "id": "12345678901",
+      "photographedBy": "Saanvi Sarkar",
+      "title": "Sample photo 1",
+      "description": "My sample photo 1",
+      "public": true,
+      "friend": false,
+      "family": false
+    },		
+    {
+      "id": "23456789012",
+      "photographedBy": "Richard Roe",
+      "title": "Sample photo 2",
+      "description": "My sample photo 2",
+      "public": true,
+      "friend": false,
+      "family": false
+    }		
+  ]
+}

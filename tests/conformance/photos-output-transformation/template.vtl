@@ -1,0 +1,16 @@
+#set($inputRoot = $input.path('$'))
+{
+  "photos": [
+#foreach($elem in $inputRoot.photos)
+    {
+      "id": "$elem.id",
+      "photographedBy": "$elem.photographedBy",
+      "title": "$elem.title",
+      "ispublic": $elem.public,
+      "isfriend": $elem.friend,
+      "isfamily": $elem.family
+    }#if($foreach.hasNext),#end
+		
+#end
+  ]
+}

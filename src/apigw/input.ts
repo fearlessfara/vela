@@ -73,25 +73,23 @@ export function createInputProvider(event: ApiGatewayEvent): InputProvider {
     params(): Record<string, string> {
       const result: Record<string, string> = {};
       
-      // Add path parameters
-      if (event.pathParameters) {
-        Object.assign(result, event.pathParameters);
+      // Add headers first (lowest precedence)
+      if (event.headers) {
+        for (const [key, value] of Object.entries(event.headers)) {
+          const lowerKey = key.toLowerCase();
+          result[lowerKey] = value || '';
+        }
       }
       
-      // Add query string parameters
+      // Add query string parameters (medium precedence)
       if (event.queryStringParameters) {
         Object.assign(result, event.queryStringParameters);
       }
       
-    // Add headers (case-insensitive)
-    if (event.headers) {
-      for (const [key, value] of Object.entries(event.headers)) {
-        const lowerKey = key.toLowerCase();
-        if (!result[lowerKey]) {
-          result[lowerKey] = value || '';
-        }
+      // Add path parameters last (highest precedence)
+      if (event.pathParameters) {
+        Object.assign(result, event.pathParameters);
       }
-    }
       
       return result;
     },
@@ -164,7 +162,12 @@ function getJsonPathValue(obj: any, path: string): any {
       if (arrayName) {
         current = current[arrayName];
         if (Array.isArray(current)) {
-          current = current[parseInt(index || '0', 10)];
+          const idx = parseInt(index || '0', 10);
+          if (idx >= 0 && idx < current.length) {
+            current = current[idx];
+          } else {
+            return null;
+          }
         } else {
           return null;
         }
@@ -176,7 +179,7 @@ function getJsonPathValue(obj: any, path: string): any {
     }
   }
 
-  return current;
+  return current === undefined ? null : current;
 }
 
 /* Deviation Report: None - $input provider matches AWS API Gateway VTL specification */

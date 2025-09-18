@@ -37,6 +37,7 @@ import {
   Gt,
   Ge,
   Question,
+  Range,
   IfDirective,
   ElseIfDirective,
   ElseDirective,
@@ -303,10 +304,20 @@ export class VtlParser extends CstParser {
     this.MANY({
       GATE: () => {
         const t = this.LA(1).tokenType;
-        return t !== EndDirective;
+        return t !== EndDirective && t !== ElseDirective;
       },
       DEF: () => {
         this.SUBRULE(this.segment, { LABEL: 'body' });
+      },
+    });
+    this.OPTION({
+      GATE: () => {
+        const t = this.LA(1).tokenType;
+        return t === ElseDirective;
+      },
+      DEF: () => {
+        this.CONSUME(ElseDirective, { LABEL: 'elseKeyword' });
+        this.SUBRULE(this.elseBodySegments, { LABEL: 'elseBody' });
       },
     });
     this.CONSUME(EndDirective, { LABEL: 'endKeyword' });
@@ -315,6 +326,19 @@ export class VtlParser extends CstParser {
   // #break directive
   breakDirective = this.RULE('breakDirective', () => {
     this.CONSUME(BreakDirective, { LABEL: 'breakKeyword' });
+  });
+
+  // Else body segments for foreach
+  elseBodySegments = this.RULE('elseBodySegments', () => {
+    this.MANY1({
+      GATE: () => {
+        const t = this.LA(1).tokenType;
+        return t !== EndDirective;
+      },
+      DEF: () => {
+        this.SUBRULE(this.segment, { LABEL: 'elseBodySegment' });
+      },
+    });
   });
 
   // #stop directive
@@ -510,18 +534,37 @@ export class VtlParser extends CstParser {
     this.SUBRULE(this.expression);
   });
 
-  // Array literal [elem1, elem2]
+  // Array literal [elem1, elem2] or range [1..3]
   arrayLiteral = this.RULE('arrayLiteral', () => {
     this.CONSUME(LBracket);
     this.OPTION(() => {
-      this.SUBRULE1(this.expression);
-      this.MANY(() => {
-        this.CONSUME(Comma);
-        this.SUBRULE2(this.expression);
-      });
+      this.OR([
+        {
+          GATE: () => {
+            const la1 = this.LA(1);
+            const la2 = this.LA(2);
+            return la1.tokenType === NumberLiteral && la2.tokenType === Range;
+          },
+          ALT: () => {
+            this.CONSUME(NumberLiteral, { LABEL: 'start' });
+            this.CONSUME(Range, { LABEL: 'rangeOperator' });
+            this.CONSUME1(NumberLiteral, { LABEL: 'end' });
+          },
+        },
+        {
+          ALT: () => {
+            this.SUBRULE1(this.expression);
+            this.MANY(() => {
+              this.CONSUME(Comma);
+              this.SUBRULE2(this.expression);
+            });
+          },
+        },
+      ]);
     });
     this.CONSUME(RBracket);
   });
+
 
 
   // Literals
