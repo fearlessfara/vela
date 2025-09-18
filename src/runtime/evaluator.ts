@@ -149,18 +149,56 @@ export class VtlEvaluator {
     const iterable = this.evaluateExpression(forEachDirective.iterable);
     
     if (!isIterable(iterable)) {
+      // If not iterable and there's an else clause, execute it
+      if (forEachDirective.elseBody && forEachDirective.elseBody.length > 0) {
+        for (const segment of forEachDirective.elseBody) {
+          this.evaluateSegment(segment);
+        }
+      }
+      return;
+    }
+
+    // Convert to array to get length and index information
+    const items = Array.from(iterable);
+    const totalItems = items.length;
+
+    // If empty and there's an else clause, execute it
+    if (totalItems === 0 && forEachDirective.elseBody && forEachDirective.elseBody.length > 0) {
+      for (const segment of forEachDirective.elseBody) {
+        this.evaluateSegment(segment);
+      }
       return;
     }
 
     this.scopeManager.pushScope();
     
     try {
-      for (const item of iterable) {
+      for (let index = 0; index < items.length; index++) {
         if (this.shouldStop || this.shouldBreak) {
           break;
         }
         
+        const item = items[index];
+        const count = index + 1; // 1-based count
+        const isFirst = index === 0;
+        const isLast = index === totalItems - 1;
+        const hasNext = index < totalItems - 1;
+        
+        // Create the $foreach object with loop control properties
+        const foreachObject = {
+          index: index,        // 0-based index
+          count: count,        // 1-based count
+          first: isFirst,      // boolean
+          last: isLast,        // boolean
+          hasNext: hasNext,    // boolean
+          stop: () => {        // method to exit the loop
+            this.shouldBreak = true;
+          }
+        };
+        
+        // Set both the loop variable and the $foreach object
         this.scopeManager.setVariable(forEachDirective.variable, item);
+        this.scopeManager.setVariable('foreach', foreachObject);
         
         for (const segment of forEachDirective.body) {
           this.evaluateSegment(segment);
@@ -299,6 +337,7 @@ export class VtlEvaluator {
   private evaluateArrayLiteral(arr: ArrayLiteral): any {
     return arr.elements.map(elem => this.evaluateExpression(elem));
   }
+
 
   private evaluateBinaryOperation(op: BinaryOperation): any {
     const left = this.evaluateExpression(op.left);

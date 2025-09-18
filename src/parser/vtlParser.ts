@@ -303,10 +303,20 @@ export class VtlParser extends CstParser {
     this.MANY({
       GATE: () => {
         const t = this.LA(1).tokenType;
-        return t !== EndDirective;
+        return t !== EndDirective && t !== ElseDirective;
       },
       DEF: () => {
         this.SUBRULE(this.segment, { LABEL: 'body' });
+      },
+    });
+    this.OPTION({
+      GATE: () => {
+        const t = this.LA(1).tokenType;
+        return t === ElseDirective;
+      },
+      DEF: () => {
+        this.CONSUME(ElseDirective, { LABEL: 'elseKeyword' });
+        this.SUBRULE(this.elseBodySegments, { LABEL: 'elseBody' });
       },
     });
     this.CONSUME(EndDirective, { LABEL: 'endKeyword' });
@@ -315,6 +325,19 @@ export class VtlParser extends CstParser {
   // #break directive
   breakDirective = this.RULE('breakDirective', () => {
     this.CONSUME(BreakDirective, { LABEL: 'breakKeyword' });
+  });
+
+  // Else body segments for foreach
+  elseBodySegments = this.RULE('elseBodySegments', () => {
+    this.MANY1({
+      GATE: () => {
+        const t = this.LA(1).tokenType;
+        return t !== EndDirective;
+      },
+      DEF: () => {
+        this.SUBRULE(this.segment, { LABEL: 'elseBodySegment' });
+      },
+    });
   });
 
   // #stop directive
@@ -522,6 +545,7 @@ export class VtlParser extends CstParser {
     });
     this.CONSUME(RBracket);
   });
+
 
 
   // Literals

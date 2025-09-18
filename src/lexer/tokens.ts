@@ -47,8 +47,10 @@ export const QuietRef = createToken({
 // Keywords
 export const InKeyword = createToken({
   name: 'InKeyword',
-  pattern: /\bin\b/,
+  pattern: /\s+in\s+/,
+  line_breaks: false,
 });
+
 
 // Interpolation
 export const InterpStart = createToken({
@@ -301,17 +303,20 @@ export const TemplateText = createToken({
       // do not start if previous char is a code-leading character
       if (startOffset > 0) {
         const p = text.charCodeAt(startOffset - 1);
-        // # $ . ( [ { ! = < > + - * / % ? : & |
-        if (p===35||p===36||p===46||p===40||p===91||p===123||p===33||p===61||p===60||p===62||p===43||p===45||p===42||p===47||p===37||p===63||p===58||p===38||p===124) {
+        // # $ . ( [ { ! = < > + - * / % ? : & | ,
+        if (p===35||p===36||p===46||p===40||p===91||p===123||p===33||p===61||p===60||p===62||p===43||p===45||p===42||p===47||p===37||p===63||p===58||p===38||p===124||p===44) {
           return null;
         }
       }
 
-      // scan forward until next '#', '$', '=', or newline
+      // scan forward until next '#', '$', '=', newline, or structural characters
       let i = startOffset;
       while (i < len) {
         const ch = text.charCodeAt(i);
-        if (ch === 35 || ch === 36 || ch === 61 || ch === 10 || ch === 13) break; // 61 is '='
+        // Stop at: # $ = newline , [ ] ( ) { } 
+        if (ch === 35 || ch === 36 || ch === 61 || ch === 10 || ch === 13 || 
+            ch === 44 || ch === 91 || ch === 93 || ch === 40 || ch === 41 || 
+            ch === 123 || ch === 125) break;
         i++;
       }
       
@@ -354,6 +359,10 @@ export const allTokens: TokenType[] = [
   // Comments first (highest priority)
   LineComment,
   BlockComment,
+
+  // Keywords must come very early to avoid conflicts with identifiers
+  InKeyword,
+
 
   // Interpolation must win before other '$' tokens
   InterpStart,
@@ -413,10 +422,11 @@ export const allTokens: TokenType[] = [
   Colon,
   Semicolon,
   Hash,
+
+  // Template text must come after all other tokens to avoid conflicts
   TemplateText,
 
-  // Keywords / Identifiers
-  InKeyword,
+  // Identifiers (after keywords)
   Identifier,
 
   // Whitespace and categories

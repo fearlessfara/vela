@@ -65,6 +65,7 @@ export interface ForEachDirective extends BaseNode {
   variable: string;
   iterable: Expression;
   body: Segment[];
+  elseBody?: Segment[];
 }
 
 export interface BreakDirective extends BaseNode {
@@ -154,6 +155,7 @@ export interface ArrayLiteral extends BaseNode {
   type: 'ArrayLiteral';
   elements: Expression[];
 }
+
 
 // Binary operations
 export interface BinaryOperation extends BaseNode {

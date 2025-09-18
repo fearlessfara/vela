@@ -233,13 +233,22 @@ function setDirectiveToAst(setDirective: CstNode): SetDirective {
 function forEachDirectiveToAst(forEachDirective: CstNode): ForEachDirective {
   const raw = (forEachDirective.children.variable![0] as any).image as string;
   const name = raw.startsWith('$!') ? raw.slice(2) : raw.startsWith('$') ? raw.slice(1) : raw;
-  return {
+  const result: ForEachDirective = {
     type: 'ForEachDirective',
     variable: name,
     iterable: expressionToAst(forEachDirective.children.iterable![0] as CstNode),
     body: forEachDirective.children.body?.map(segmentToAst) || [],
     location: getLocation(forEachDirective),
   };
+  
+  if (forEachDirective.children.elseBody && forEachDirective.children.elseBody.length > 0) {
+    const elseBodyNode = forEachDirective.children.elseBody[0] as CstNode;
+    if (elseBodyNode.children.elseBodySegment && elseBodyNode.children.elseBodySegment.length > 0) {
+      result.elseBody = elseBodyNode.children.elseBodySegment.map(segmentToAst);
+    }
+  }
+  
+  return result;
 }
 
 function breakDirectiveToAst(breakDirective: CstNode): BreakDirective {
@@ -470,6 +479,7 @@ function arrayLiteralToAst(arr: CstNode): ArrayLiteral {
     location: getLocation(arr),
   };
 }
+
 
 
 function logicalOrToAst(logicalOr: CstNode): Expression {
