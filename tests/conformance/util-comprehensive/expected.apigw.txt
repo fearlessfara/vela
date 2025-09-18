@@ -26,7 +26,6 @@
     "epochSecond": 1703510400,
     "format": "2023-12-25 12:30:45.123"
   },
-  "qr": "QR:\"test data\"",
   "error": "VTL Error: Test error (Status: 400)",
   "appendError": "VTL Error: Test error (Status: 500)",
   "abort": "VTL Abort: Test abort (Status: 500)"

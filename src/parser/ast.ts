@@ -100,6 +100,7 @@ export type Expression =
   | ArrayAccess 
   | ObjectLiteral 
   | ArrayLiteral 
+  | RangeLiteral
   | BinaryOperation 
   | UnaryOperation 
   | TernaryOperation;
@@ -154,6 +155,13 @@ export interface ObjectProperty extends BaseNode {
 export interface ArrayLiteral extends BaseNode {
   type: 'ArrayLiteral';
   elements: Expression[];
+}
+
+// Range literals [1..3]
+export interface RangeLiteral extends BaseNode {
+  type: 'RangeLiteral';
+  start: number;
+  end: number;
 }
 
 

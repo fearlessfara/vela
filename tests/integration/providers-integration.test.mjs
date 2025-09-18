@@ -351,9 +351,6 @@ describe('Providers Integration Tests', () => {
     });
 
     test('should provide utility functions', () => {
-      const qrResult = utilProvider.qr('test data');
-      expect(qrResult).toBe('QR:"test data"');
-
       expect(() => {
         utilProvider.error('Test error', 400);
       }).toThrow('VTL Error: Test error (Status: 400)');

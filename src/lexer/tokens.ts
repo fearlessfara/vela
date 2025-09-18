@@ -217,6 +217,11 @@ export const Ge = createToken({
 
 });
 
+export const Range = createToken({
+  name: 'Range',
+  pattern: /\.\./,
+});
+
 // Directives
 export const Hash = createToken({
   name: 'Hash',
@@ -409,6 +414,7 @@ export const allTokens: TokenType[] = [
   Gt,
   Assign,
   Question,
+  Range,
 
   // Punctuation
   LCurly,

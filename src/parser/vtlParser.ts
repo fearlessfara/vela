@@ -37,6 +37,7 @@ import {
   Gt,
   Ge,
   Question,
+  Range,
   IfDirective,
   ElseIfDirective,
   ElseDirective,
@@ -533,15 +534,33 @@ export class VtlParser extends CstParser {
     this.SUBRULE(this.expression);
   });
 
-  // Array literal [elem1, elem2]
+  // Array literal [elem1, elem2] or range [1..3]
   arrayLiteral = this.RULE('arrayLiteral', () => {
     this.CONSUME(LBracket);
     this.OPTION(() => {
-      this.SUBRULE1(this.expression);
-      this.MANY(() => {
-        this.CONSUME(Comma);
-        this.SUBRULE2(this.expression);
-      });
+      this.OR([
+        {
+          GATE: () => {
+            const la1 = this.LA(1);
+            const la2 = this.LA(2);
+            return la1.tokenType === NumberLiteral && la2.tokenType === Range;
+          },
+          ALT: () => {
+            this.CONSUME(NumberLiteral, { LABEL: 'start' });
+            this.CONSUME(Range, { LABEL: 'rangeOperator' });
+            this.CONSUME1(NumberLiteral, { LABEL: 'end' });
+          },
+        },
+        {
+          ALT: () => {
+            this.SUBRULE1(this.expression);
+            this.MANY(() => {
+              this.CONSUME(Comma);
+              this.SUBRULE2(this.expression);
+            });
+          },
+        },
+      ]);
     });
     this.CONSUME(RBracket);
   });

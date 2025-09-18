@@ -21,6 +21,7 @@ import {
   ArrayAccess,
   ObjectLiteral,
   ArrayLiteral,
+  RangeLiteral,
   BinaryOperator,
   UnaryOperator,
   Position,
@@ -470,7 +471,21 @@ function objectLiteralToAst(obj: CstNode): ObjectLiteral {
   };
 }
 
-function arrayLiteralToAst(arr: CstNode): ArrayLiteral {
+function arrayLiteralToAst(arr: CstNode): ArrayLiteral | RangeLiteral {
+  // Check if this is a range literal [1..3]
+  if (arr.children.start && arr.children.rangeOperator && arr.children.end) {
+    const start = parseInt((arr.children.start[0] as any).image);
+    const end = parseInt((arr.children.end[0] as any).image);
+    
+    return {
+      type: 'RangeLiteral',
+      start,
+      end,
+      location: getLocation(arr),
+    };
+  }
+  
+  // Regular array literal
   const elements = arr.children.expression?.map(expr => expressionToAst(expr as CstNode)) || [];
 
   return {

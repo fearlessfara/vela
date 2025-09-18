@@ -19,6 +19,7 @@ import {
   ArrayAccess,
   ObjectLiteral,
   ArrayLiteral,
+  RangeLiteral,
   BinaryOperation,
   UnaryOperation,
   TernaryOperation,
@@ -243,6 +244,8 @@ export class VtlEvaluator {
         return this.evaluateObjectLiteral(expr);
       case 'ArrayLiteral':
         return this.evaluateArrayLiteral(expr);
+      case 'RangeLiteral':
+        return this.evaluateRangeLiteral(expr);
       case 'BinaryOperation':
         return this.evaluateBinaryOperation(expr);
       case 'UnaryOperation':
@@ -336,6 +339,14 @@ export class VtlEvaluator {
 
   private evaluateArrayLiteral(arr: ArrayLiteral): any {
     return arr.elements.map(elem => this.evaluateExpression(elem));
+  }
+
+  private evaluateRangeLiteral(range: RangeLiteral): any {
+    const result = [];
+    for (let i = range.start; i <= range.end; i++) {
+      result.push(i);
+    }
+    return result;
   }
 
 

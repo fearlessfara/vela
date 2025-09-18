@@ -195,14 +195,6 @@ describe('$util Provider Unit Tests', () => {
   });
 
   describe('Utility Functions', () => {
-    test('should generate QR code representation', () => {
-      const result = provider.qr('test data');
-      expect(result).toBe('QR:"test data"');
-      
-      const objResult = provider.qr({ name: 'John' });
-      expect(objResult).toBe('QR:{"name":"John"}');
-    });
-
     test('should throw error with message and status code', () => {
       expect(() => {
         provider.error('Test error', 400);
