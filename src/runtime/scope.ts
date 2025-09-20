@@ -5,6 +5,17 @@
 export interface Scope {
   variables: Map<string, any>;
   parent?: Scope;
+  depth: number;
+  scopeType?: 'global' | 'foreach' | 'macro' | 'local';
+  iteratorContext?: ForeachIteratorContext;
+}
+
+export interface ForeachIteratorContext {
+  depth: number;
+  variableName: string;
+  iteratorVariableName: string;
+  velocityCountVariableName: string;
+  parentIteratorContext?: ForeachIteratorContext | undefined;
 }
 
 export interface MacroDefinition {
@@ -16,10 +27,16 @@ export interface MacroDefinition {
 export class ScopeManager {
   private currentScope: Scope;
   private macroTable: Map<string, MacroDefinition>;
+  private foreachDepth: number;
 
   constructor() {
-    this.currentScope = { variables: new Map() };
+    this.currentScope = {
+      variables: new Map(),
+      depth: 0,
+      scopeType: 'global'
+    };
     this.macroTable = new Map();
+    this.foreachDepth = 0;
   }
 
   // Variable operations
@@ -50,18 +67,64 @@ export class ScopeManager {
   }
 
   // Scope management
-  pushScope(): void {
+  pushScope(scopeType: 'global' | 'foreach' | 'macro' | 'local' = 'local'): void {
     const newScope: Scope = {
       variables: new Map(),
       parent: this.currentScope,
+      depth: this.currentScope.depth + 1,
+      scopeType: scopeType,
+    };
+    this.currentScope = newScope;
+  }
+
+  pushForeachScope(variableName: string, iteratorVariableName: string = 'foreach', velocityCountVariableName: string = 'velocityCount'): void {
+    this.foreachDepth++;
+    const parentIteratorContext = this.getCurrentForeachContext();
+    
+    const iteratorContext: ForeachIteratorContext = {
+      depth: this.foreachDepth,
+      variableName: variableName,
+      iteratorVariableName: iteratorVariableName,
+      velocityCountVariableName: velocityCountVariableName,
+      parentIteratorContext: parentIteratorContext
+    };
+
+    const newScope: Scope = {
+      variables: new Map(),
+      parent: this.currentScope,
+      depth: this.currentScope.depth + 1,
+      scopeType: 'foreach',
+      iteratorContext: iteratorContext,
     };
     this.currentScope = newScope;
   }
 
   popScope(): void {
     if (this.currentScope.parent) {
+      if (this.currentScope.scopeType === 'foreach') {
+        this.foreachDepth--;
+      }
       this.currentScope = this.currentScope.parent;
     }
+  }
+
+  getCurrentForeachContext(): ForeachIteratorContext | undefined {
+    let scope: Scope | undefined = this.currentScope;
+    while (scope) {
+      if (scope.scopeType === 'foreach' && scope.iteratorContext) {
+        return scope.iteratorContext;
+      }
+      scope = scope.parent;
+    }
+    return undefined;
+  }
+
+  getForeachDepth(): number {
+    return this.foreachDepth;
+  }
+
+  getScopeDepth(): number {
+    return this.currentScope.depth;
   }
 
   // Macro operations (stub)
@@ -79,8 +142,13 @@ export class ScopeManager {
 
   // Clear all state
   clear(): void {
-    this.currentScope = { variables: new Map() };
+    this.currentScope = {
+      variables: new Map(),
+      depth: 0,
+      scopeType: 'global'
+    };
     this.macroTable.clear();
+    this.foreachDepth = 0;
   }
 }
 

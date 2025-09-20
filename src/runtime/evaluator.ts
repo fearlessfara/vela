@@ -32,6 +32,14 @@ export interface EvaluationContext {
   input?: any;
   context?: any;
   flags: FeatureFlags;
+  iteratorConfig?: ForeachIteratorConfig;
+}
+
+export interface ForeachIteratorConfig {
+  iteratorVariableName?: string;
+  velocityCountVariableName?: string;
+  skipInvalidIterator?: boolean;
+  enableStreamingIterators?: boolean;
 }
 
 export class VtlEvaluator {
@@ -41,14 +49,16 @@ export class VtlEvaluator {
   private shouldStop: boolean;
   private shouldBreak: boolean;
   private jsonOutputMode: boolean;
+  private maxNbrLoops: number;
 
-  constructor(context: EvaluationContext) {
+  constructor(context: EvaluationContext, maxNbrLoops: number = 1000) {
     this.scopeManager = new ScopeManager();
     this.stringBuilder = new StringBuilder();
     this.context = context;
     this.shouldStop = false;
     this.shouldBreak = false;
     this.jsonOutputMode = false;
+    this.maxNbrLoops = maxNbrLoops > 0 ? maxNbrLoops : Number.MAX_SAFE_INTEGER;
   }
 
   evaluateTemplate(template: Template): string {
@@ -149,7 +159,18 @@ export class VtlEvaluator {
   private evaluateForEachDirective(forEachDirective: ForEachDirective): void {
     const iterable = this.evaluateExpression(forEachDirective.iterable);
     
-    if (!isIterable(iterable)) {
+    // Get configuration options
+    const config = this.context.iteratorConfig || {};
+    const skipInvalidIterator = config.skipInvalidIterator ?? isFlagEnabled(this.context.flags, 'SKIP_INVALID_ITERATOR');
+    const iteratorVariableName = config.iteratorVariableName ?? 'foreach';
+    const velocityCountVariableName = config.velocityCountVariableName ?? 'velocityCount';
+    
+    if (!this.isIterableValue(iterable)) {
+      if (skipInvalidIterator) {
+        // Skip silently
+        return;
+      }
+      
       // If not iterable and there's an else clause, execute it
       if (forEachDirective.elseBody && forEachDirective.elseBody.length > 0) {
         for (const segment of forEachDirective.elseBody) {
@@ -159,8 +180,8 @@ export class VtlEvaluator {
       return;
     }
 
-    // Convert to array to get length and index information
-    const items = Array.from(iterable);
+    // Enhanced iterator conversion with streaming support
+    const items = this.convertToIterableArray(iterable);
     const totalItems = items.length;
 
     // If empty and there's an else clause, execute it
@@ -171,13 +192,21 @@ export class VtlEvaluator {
       return;
     }
 
-    this.scopeManager.pushScope();
+    // Enhanced scope management for nested foreach
+    if (isFlagEnabled(this.context.flags, 'ENHANCED_FOREACH_SCOPE')) {
+      this.scopeManager.pushForeachScope(forEachDirective.variable, iteratorVariableName, velocityCountVariableName);
+    } else {
+      this.scopeManager.pushScope('foreach');
+    }
     
     try {
-      for (let index = 0; index < items.length; index++) {
+      let loopCount = 0;
+      for (let index = 0; index < items.length && loopCount < this.maxNbrLoops; index++) {
         if (this.shouldStop || this.shouldBreak) {
           break;
         }
+        
+        loopCount++;
         
         const item = items[index];
         const count = index + 1; // 1-based count
@@ -185,7 +214,7 @@ export class VtlEvaluator {
         const isLast = index === totalItems - 1;
         const hasNext = index < totalItems - 1;
         
-        // Create the $foreach object with loop control properties
+        // Create the enhanced $foreach object with loop control properties
         const foreachObject = {
           index: index,        // 0-based index
           count: count,        // 1-based count
@@ -197,9 +226,20 @@ export class VtlEvaluator {
           }
         };
         
-        // Set both the loop variable and the $foreach object
+        // Set the loop variable
         this.scopeManager.setVariable(forEachDirective.variable, item);
-        this.scopeManager.setVariable('foreach', foreachObject);
+        
+        // Set iterator object with configurable name
+        if (isFlagEnabled(this.context.flags, 'CONFIGURABLE_ITERATOR_NAMES')) {
+          this.scopeManager.setVariable(iteratorVariableName, foreachObject);
+        } else {
+          this.scopeManager.setVariable('foreach', foreachObject);
+        }
+        
+        // Set $velocityCount support (Apache Velocity compatibility)
+        if (isFlagEnabled(this.context.flags, 'VELOCITY_COUNT_SUPPORT')) {
+          this.scopeManager.setVariable(velocityCountVariableName, count);
+        }
         
         for (const segment of forEachDirective.body) {
           this.evaluateSegment(segment);
@@ -208,6 +248,86 @@ export class VtlEvaluator {
     } finally {
       this.scopeManager.popScope();
       this.shouldBreak = false;
+    }
+  }
+
+  private isIterableValue(value: any): boolean {
+    if (value === null || value === undefined) {
+      return false;
+    }
+    
+    // Enhanced type checking for various iterable types
+    if (Array.isArray(value)) {
+      return true;
+    }
+    
+    // Check for Iterator protocol
+    if (value && typeof value[Symbol.iterator] === 'function') {
+      return true;
+    }
+    
+    // Check for array-like objects
+    if (typeof value === 'object' && typeof value.length === 'number' && value.length >= 0) {
+      return true;
+    }
+    
+    // Check for Map and Set
+    if (value instanceof Map || value instanceof Set) {
+      return true;
+    }
+    
+    // Check for NodeList, HTMLCollection, etc.
+    if (typeof value === 'object' &&
+        ('item' in value || 'namedItem' in value) &&
+        typeof value.length === 'number') {
+      return true;
+    }
+    
+    return false;
+  }
+
+  private convertToIterableArray(iterable: any): any[] {
+    // Enhanced iterator conversion with better type support
+    if (Array.isArray(iterable)) {
+      return iterable;
+    }
+    
+    // Handle streaming iterators without memory-intensive conversions for small datasets
+    if (iterable && typeof iterable[Symbol.iterator] === 'function') {
+      const items: any[] = [];
+      const iterator = iterable[Symbol.iterator]();
+      let result = iterator.next();
+      let count = 0;
+      
+      // Limit conversion to avoid memory issues with large datasets
+      const maxConversionSize = this.maxNbrLoops;
+      while (!result.done && count < maxConversionSize) {
+        items.push(result.value);
+        result = iterator.next();
+        count++;
+      }
+      return items;
+    }
+    
+    // Handle Map and Set
+    if (iterable instanceof Map) {
+      return Array.from(iterable.entries());
+    }
+    
+    if (iterable instanceof Set) {
+      return Array.from(iterable);
+    }
+    
+    // Handle array-like objects
+    if (typeof iterable === 'object' && typeof iterable.length === 'number') {
+      return Array.from(iterable);
+    }
+    
+    // Fallback to Array.from for other cases
+    try {
+      return Array.from(iterable);
+    } catch (e) {
+      return [];
     }
   }
 
@@ -578,9 +698,5 @@ function isTruthy(value: any): boolean {
   return true;
 }
 
-function isIterable(value: any): boolean {
-  return Array.isArray(value) || 
-         (value && typeof value[Symbol.iterator] === 'function');
-}
 
 /* Deviation Report: None - Evaluator matches AWS API Gateway VTL specification */

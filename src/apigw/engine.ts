@@ -15,6 +15,7 @@ export interface RenderTemplateOptions {
   event: ApiGatewayEvent;
   context?: ApiGatewayContext;
   flags?: Partial<FeatureFlags>;
+  maxNbrLoops?: number;
 }
 
 export interface RenderTemplateResult {
@@ -24,14 +25,17 @@ export interface RenderTemplateResult {
 
 export class VtlEngine {
   private parser: VtlParser;
+  private defaultMaxNbrLoops: number;
 
-  constructor(debugMode: boolean = false) {
+  constructor(debugMode: boolean = false, maxNbrLoops: number = 1000) {
     this.parser = new VtlParser(debugMode);
+    this.defaultMaxNbrLoops = maxNbrLoops;
   }
 
   renderTemplate(options: RenderTemplateOptions): RenderTemplateResult {
-    const { template, event, context, flags = {} } = options;
+    const { template, event, context, flags = {}, maxNbrLoops } = options;
     const mergedFlags = { ...DEFAULT_FLAGS, ...flags };
+    const effectiveMaxLoops = maxNbrLoops ?? this.defaultMaxNbrLoops;
     const errors: string[] = [];
 
     try {
@@ -62,7 +66,7 @@ export class VtlEngine {
       const evaluationContext = this.createEvaluationContext(event, context, mergedFlags);
 
       // Evaluate the template
-      const evaluator = new VtlEvaluator(evaluationContext);
+      const evaluator = new VtlEvaluator(evaluationContext, effectiveMaxLoops);
       const output = evaluator.evaluateTemplate(ast);
 
       return { output, errors };
@@ -338,7 +342,8 @@ export class VtlEngine {
 
 // Convenience function for simple template rendering
 export function renderTemplate(options: RenderTemplateOptions, debugMode: boolean = false): RenderTemplateResult {
-  const engine = new VtlEngine(debugMode);
+  const maxLoops = options.maxNbrLoops ?? 1000;
+  const engine = new VtlEngine(debugMode, maxLoops);
   return engine.renderTemplate(options);
 }
 
