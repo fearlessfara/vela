@@ -1,0 +1,6 @@
+#foreach($group in $groups)
+Group: $group.name
+  #foreach($item in $group.items)
+  Item: $item, Outer: $velocityCount, Inner: $velocityCount
+  #end
+#end

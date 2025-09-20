@@ -1,0 +1,3 @@
+Item: x, MyIterator: 1, MyCount: 1
+Item: y, MyIterator: 2, MyCount: 2
+Item: z, MyIterator: 3, MyCount: 3

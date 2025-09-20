@@ -1,0 +1,3 @@
+Item: apple, Index: 0, Count: 1, VelocityCount: 1
+Item: banana, Index: 1, Count: 2, VelocityCount: 2
+Item: cherry, Index: 2, Count: 3, VelocityCount: 3

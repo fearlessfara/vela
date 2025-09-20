@@ -1,0 +1,11 @@
+{
+  "items": ["x", "y", "z"],
+  "_vtl_flags": {
+    "VELOCITY_COUNT_SUPPORT": "ON",
+    "CONFIGURABLE_ITERATOR_NAMES": "ON"
+  },
+  "_vtl_iterator_config": {
+    "iteratorVariableName": "myIterator",
+    "velocityCountVariableName": "myVelocityCount"
+  }
+}

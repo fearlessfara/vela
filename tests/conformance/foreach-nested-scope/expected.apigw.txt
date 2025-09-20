@@ -1,0 +1,6 @@
+Group: Fruits
+  Item: apple, Outer: 1, Inner: 1
+  Item: banana, Outer: 2, Inner: 2
+Group: Colors
+  Item: red, Outer: 1, Inner: 1
+  Item: blue, Outer: 2, Inner: 2

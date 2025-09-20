@@ -1,0 +1,16 @@
+{
+  "groups": [
+    {
+      "name": "Fruits",
+      "items": ["apple", "banana"]
+    },
+    {
+      "name": "Colors", 
+      "items": ["red", "blue"]
+    }
+  ],
+  "_vtl_flags": {
+    "VELOCITY_COUNT_SUPPORT": "ON",
+    "ENHANCED_FOREACH_SCOPE": "ON"
+  }
+}
