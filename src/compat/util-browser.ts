@@ -145,14 +145,15 @@ export function createUtilProvider(): UtilProvider {
         const date = time || (hasFixedTime ? new Date(fixedMillis as number) : new Date());
 
         // Simple template formatting - APIGW uses a subset of Java SimpleDateFormat
+        // Use UTC methods for consistent timezone handling
         return template
-          .replace(/yyyy/g, date.getFullYear().toString())
-          .replace(/MM/g, String(date.getMonth() + 1).padStart(2, '0'))
-          .replace(/dd/g, String(date.getDate()).padStart(2, '0'))
-          .replace(/HH/g, String(date.getHours()).padStart(2, '0'))
-          .replace(/mm/g, String(date.getMinutes()).padStart(2, '0'))
-          .replace(/ss/g, String(date.getSeconds()).padStart(2, '0'))
-          .replace(/SSS/g, String(date.getMilliseconds()).padStart(3, '0'));
+          .replace(/yyyy/g, date.getUTCFullYear().toString())
+          .replace(/MM/g, String(date.getUTCMonth() + 1).padStart(2, '0'))
+          .replace(/dd/g, String(date.getUTCDate()).padStart(2, '0'))
+          .replace(/HH/g, String(date.getUTCHours()).padStart(2, '0'))
+          .replace(/mm/g, String(date.getUTCMinutes()).padStart(2, '0'))
+          .replace(/ss/g, String(date.getUTCSeconds()).padStart(2, '0'))
+          .replace(/SSS/g, String(date.getUTCMilliseconds()).padStart(3, '0'));
       },
     },
 
