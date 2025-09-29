@@ -2,14 +2,8 @@
 
 // APIGW:Main Entry Point
 
-export { VtlEngine, renderTemplate } from './apigw/engine.js';
-export { VtlParser } from './parser/vtlParser.js';
-export { cstToAst } from './parser/cstToAst.js';
-export { VtlEvaluator } from './runtime/evaluator.js';
-export { createUtilProvider } from './apigw/util.js';
-export { createInputProvider } from './apigw/input.js';
-export { createContextProvider } from './apigw/context.js';
-export { FeatureFlags, DEFAULT_FLAGS, isFlagEnabled, isFlagDual } from './config/featureFlags.js';
-export * from './parser/ast.js';
+// Re-export everything from the packages
+export * from '@fearlessfara/vela';
+export * from '@fearlessfara/apigw-vela';
 
 /* Deviation Report: None - Main entry point matches AWS API Gateway VTL specification */

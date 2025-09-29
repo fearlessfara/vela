@@ -1,0 +1,44 @@
+{
+  "name": "@fearlessfara/apigw-vela",
+  "version": "0.1.2",
+  "description": "API Gateway VTL adapter - AWS API Gateway specific VTL functionality",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist/**/*"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:conformance": "vitest run tests/conformance.test.ts"
+  },
+  "dependencies": {
+    "@fearlessfara/vela": "file:../core",
+    "chevrotain": "^11.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^2.1.3"
+  },
+  "keywords": [
+    "vtl",
+    "velocity",
+    "template",
+    "engine",
+    "api-gateway",
+    "aws"
+  ],
+  "author": "Vela Team",
+  "license": "MIT"
+}
