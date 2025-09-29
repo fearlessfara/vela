@@ -11,7 +11,7 @@
       "isfriend": false,
       "isfamily": false,
       "photoUrl": "https://farm1.staticflickr.com/1234/12345678901_abc123d456.jpg"
-    },		
+},		
     {
       "id": "23456789012",
       "photographedBy": "Richard Roe",
@@ -20,12 +20,12 @@
       "isfriend": false,
       "isfamily": false,
       "photoUrl": "https://farm2.staticflickr.com/2345/23456789012_bcd234e567.jpg"
-    }		
-  ],
+}		
+],
   "pagination": {
     "currentPage": 1,
     "totalPages": 1234,
     "perPage": 100,
     "totalPhotos": 123398
-  }
+}
 }

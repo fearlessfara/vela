@@ -29,9 +29,13 @@ export class ApiGatewayVtlAdapter {
   renderTemplate(options: ApiGatewayRenderOptions): ApiGatewayRenderResult {
     const { template, event, context, flags = {} } = options;
     const mergedFlags = { ...DEFAULT_FLAGS, ...flags };
-    return this.engine.renderTemplate({ template, event, context, flags: mergedFlags });
+    const base = { template, event, flags: mergedFlags } as any;
+    const coreOptions = context === undefined ? base : { ...base, context };
+    return this.engine.renderTemplate(coreOptions);
   }
 
+  // Reserved for potential future use
+  /*
   private createDefaultContext(event: ApiGatewayEvent): ApiGatewayContext {
     const requestContext = event.requestContext || {};
     const identity = requestContext.identity || {};
@@ -130,6 +134,7 @@ export class ApiGatewayVtlAdapter {
       responseOverride,
     };
   }
+  */
 }
 
 // Convenience function for simple template rendering

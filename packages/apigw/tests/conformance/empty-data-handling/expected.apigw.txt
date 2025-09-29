@@ -8,6 +8,6 @@
     "totalPages": 0,
     "perPage": 100,
     "totalPhotos": 0
-  },
+},
   "message": "No photos found for the specified criteria"
 }

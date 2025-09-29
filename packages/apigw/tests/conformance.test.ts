@@ -14,6 +14,7 @@ function loadCase(dir: string) {
   const templatePath = path.join(dir, 'template.vtl');
   const requestPath = path.join(dir, 'request.json');
   const expectedPath = path.join(dir, 'expected.apigw.txt');
+  const contextPath = path.join(dir, 'context.json');
 
   if (!existsSync(templatePath)) throw new Error(`Missing template: ${templatePath}`);
   if (!existsSync(requestPath)) throw new Error(`Missing request: ${requestPath}`);
@@ -21,7 +22,8 @@ function loadCase(dir: string) {
   const template = readFileSync(templatePath, 'utf8');
   const request = JSON.parse(readFileSync(requestPath, 'utf8'));
   const expected = existsSync(expectedPath) ? readFileSync(expectedPath, 'utf8') : '';
-  return { template, request, expected };
+  const context = existsSync(contextPath) ? JSON.parse(readFileSync(contextPath, 'utf8')) : undefined;
+  return { template, request, expected, context };
 }
 
 describe('Conformance', () => {
@@ -30,13 +32,6 @@ describe('Conformance', () => {
     .map((d) => ({ name: d.name, dir: path.join(conformanceRoot, d.name) }));
 
   const skip: Record<string, boolean> = {
-    'context-identity-comprehensive': true,
-    'context-additional-fields': true,
-    'context-additional-fields-defaults': true,
-    'advanced-photos-api': true,
-    'empty-data-handling': true,
-    'error-handling-example': true,
-    'foreach-range': true,
   };
 
   for (const c of cases) {
@@ -50,11 +45,12 @@ describe('Conformance', () => {
       } else {
         process.env.VELA_FIXED_NOW_ISO8601 = '2024-01-01T00:00:00.000Z';
       }
-      const { template, request, expected } = loadCase(c.dir);
+      const { template, request, expected, context } = loadCase(c.dir);
 
       const result = renderApiGatewayTemplate({
         template,
         event: request,
+        context,
         flags: { ...DEFAULT_FLAGS, APIGW_UTILS: 'ON', APIGW_INPUT: 'ON', APIGW_CONTEXT: 'ON' },
       });
 

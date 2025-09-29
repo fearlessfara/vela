@@ -1,0 +1,17 @@
+{
+  "requestId": "test-request-123",
+  "httpMethod": "POST",
+  "protocol": "HTTP/1.1",
+  "stage": "prod",
+  "domainName": "api.example.com",
+  "domainPrefix": "api",
+  "requestTime": "25/Dec/2023:12:00:00 +0000",
+  "requestTimeEpoch": 1703510400000,
+  "stageVariables": {
+    "apiVersion": "v1"
+  },
+  "identity": {
+    "sourceIp": "192.168.1.1",
+    "userAgent": "Mozilla/5.0 (compatible; API Gateway)"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "requestId": "test-request-123",
+  "httpMethod": "POST",
+  "protocol": "HTTP/1.1",
+  "stage": "prod",
+  "identity": {
+    "sourceIp": "192.168.1.1",
+    "userAgent": "Mozilla/5.0 (compatible; API Gateway)"
+  }
+}

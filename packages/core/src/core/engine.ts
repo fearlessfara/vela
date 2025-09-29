@@ -67,7 +67,6 @@ export class CoreVtlEngine {
     _providers: ProviderRegistry
   ): EvaluationContext {
     const evaluationContext: EvaluationContext = {
-      newlineMode: 'velocity',
       ...context,
     };
 

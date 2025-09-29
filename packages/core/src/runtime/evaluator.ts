@@ -31,7 +31,6 @@ export interface EvaluationContext {
   input?: any;
   context?: any;
   flags?: any;
-  newlineMode?: 'velocity' | 'apigw';
 }
 
 export class VtlEvaluator {
@@ -41,6 +40,10 @@ export class VtlEvaluator {
   private shouldStop: boolean;
   private shouldBreak: boolean;
   private jsonOutputMode: boolean;
+  private static isDotChain(v: any): v is { __dotChain: true; value: string } {
+    return v && typeof v === 'object' && v.__dotChain === true && typeof v.value === 'string';
+  }
+  private static dotChain(value: string) { return { __dotChain: true as const, value }; }
   private static isMissingRef(v: any): v is { __missingRef: true; literal: string } {
     return v && typeof v === 'object' && v.__missingRef === true && typeof v.literal === 'string';
   }
@@ -69,52 +72,24 @@ export class VtlEvaluator {
     return this.stringBuilder.flush();
   }
 
-  private isDirectiveSegment(segment: Segment): boolean {
-    return (
-      (segment as any).type === 'IfDirective' ||
-      (segment as any).type === 'SetDirective' ||
-      (segment as any).type === 'ForEachDirective' ||
-      (segment as any).type === 'BreakDirective' ||
-      (segment as any).type === 'StopDirective' ||
-      (segment as any).type === 'MacroDirective'
-    );
-  }
+  // Helpers retained for completeness; may be used by future whitespace features
+  // private isDirectiveSegment(segment: Segment): boolean { return false; }
+  // private chompLeadingNewline(text: string): string { return text; }
+  // private chompTrailingNewline(text: string): string { return text; }
 
-  private chompLeadingNewline(text: string): string {
-    if (text.startsWith('\r\n')) return text.slice(2);
-    if (text.startsWith('\n')) return text.slice(1);
-    return text;
-  }
-
-  private chompTrailingNewline(text: string): string {
-    if (text.endsWith('\r\n')) return text.slice(0, -2);
-    if (text.endsWith('\n')) return text.slice(0, -1);
-    return text;
-  }
-
-  private evaluateSegments(segments: Segment[], initialPrevWasDirective: boolean = false): void {
-    let prevWasDirective = initialPrevWasDirective;
-    const mode = (this.context?.newlineMode as any) || 'velocity';
+  private evaluateSegments(segments: Segment[], _initialPrevWasDirective: boolean = false): void {
+    let prevWasDirective = _initialPrevWasDirective;
     for (let i = 0; i < segments.length; i++) {
       if (this.shouldStop) break;
       const segment = segments[i];
       if (!segment) continue;
       if (segment.type === 'Text') {
         let value = (segment as Text).value;
-        if (prevWasDirective && mode === 'velocity') {
-          value = this.chompLeadingNewline(value);
-        }
-        // If the next segment is a directive, trim exactly one trailing newline
-        const next = i + 1 < segments.length ? segments[i + 1] : undefined;
-        if (next && this.isDirectiveSegment(next) && mode === 'velocity') {
-          value = this.chompTrailingNewline(value);
-        }
-        // APIGW JSON mode: if text ends with ': ' and next is an interpolation,
-        // drop the single trailing space to match compact field formatting
-        if (next && next.type === 'Interpolation' && this.jsonOutputMode && mode === 'apigw') {
-          if (value.endsWith(': ')) {
-            value = value.slice(0, -1);
-          }
+        // Match Velocity's behavior: consume a single leading newline
+        // immediately following a directive placed on its own line.
+        if (prevWasDirective && value) {
+          if (value.startsWith('\r\n')) value = value.slice(2);
+          else if (value.startsWith('\n')) value = value.slice(1);
         }
         if (value) this.stringBuilder.appendString(value);
         prevWasDirective = false;
@@ -206,9 +181,7 @@ export class VtlEvaluator {
     if (!isIterable(iterable)) {
       // If not iterable and there's an else clause, execute it
       if (forEachDirective.elseBody && forEachDirective.elseBody.length > 0) {
-        for (const segment of forEachDirective.elseBody) {
-          this.evaluateSegment(segment);
-        }
+        this.evaluateSegments(forEachDirective.elseBody, true);
       }
       return;
     }
@@ -219,9 +192,7 @@ export class VtlEvaluator {
 
     // If empty and there's an else clause, execute it
     if (totalItems === 0 && forEachDirective.elseBody && forEachDirective.elseBody.length > 0) {
-      for (const segment of forEachDirective.elseBody) {
-        this.evaluateSegment(segment);
-      }
+      this.evaluateSegments(forEachDirective.elseBody, true);
       return;
     }
 
@@ -256,17 +227,7 @@ export class VtlEvaluator {
         this.scopeManager.setVariable(forEachDirective.variable, item);
         this.scopeManager.setVariable('foreach', foreachObject);
         const iterSegments: Segment[] = bodySegments.slice();
-        if (((this.context?.newlineMode as any) || 'velocity') === 'velocity') {
-          const firstSeg = iterSegments[0] as Segment | undefined;
-          if (firstSeg && firstSeg.type === 'Text') {
-            const t = firstSeg as Text;
-            const trimmed = this.chompLeadingNewline(t.value);
-            if (trimmed !== t.value) {
-              iterSegments[0] = { ...t, value: trimmed } as any;
-            }
-          }
-        }
-        this.evaluateSegments(iterSegments);
+        this.evaluateSegments(iterSegments, true);
       }
     } finally {
       this.scopeManager.popScope();
@@ -346,6 +307,11 @@ export class VtlEvaluator {
   private evaluateMemberAccess(member: MemberAccess): any {
     const object = this.evaluateExpression(member.object);
 
+    if (VtlEvaluator.isDotChain(object)) {
+      // Continue accumulating literal member access as plain text
+      return VtlEvaluator.dotChain(`${object.value}.${member.property}`);
+    }
+
     if (VtlEvaluator.isMissingRef(object)) {
       return VtlEvaluator.missing(`${object.literal}.${member.property}`);
     }
@@ -354,6 +320,16 @@ export class VtlEvaluator {
     }
 
     if (typeof object === 'object' && object !== null) {
+      // Support Velocity-style size() on arrays and objects
+      if (member.property === 'size') {
+        const target = object as any;
+        if (Array.isArray(target)) {
+          return () => target.length;
+        }
+        if (target && typeof target === 'object') {
+          return () => Object.keys(target).length;
+        }
+      }
       const value = (object as any)[member.property];
       if (typeof value === 'function') {
         return value.bind(object);
@@ -361,13 +337,28 @@ export class VtlEvaluator {
       return value !== undefined ? value : VtlEvaluator.missing(`$${member.property}`);
     }
 
-    return '';
+    // When attempting to continue a chain on a primitive, emit the already-evaluated
+    // base value followed by the literal suffix. This matches Velocity's behavior
+    // where $ref.property on a primitive prints the ref value and then treats the
+    // remainder as literal text.
+    let base: string;
+    try {
+      // Serialize primitives like numbers/booleans consistently with JSON mode
+      base = typeof object === 'string' ? object : JSON.stringify(object);
+    } catch {
+      base = String(object);
+    }
+    return VtlEvaluator.dotChain(`${base}.${member.property}`);
   }
 
   private evaluateFunctionCall(call: FunctionCall): any {
     const callee = this.evaluateExpression(call.callee);
     const args = call.arguments.map(arg => this.evaluateExpression(arg));
     
+    if (VtlEvaluator.isDotChain(callee)) {
+      // Append function call literally
+      return VtlEvaluator.dotChain(`${callee.value}()`);
+    }
     if (typeof callee === 'function') {
       return callee(...args);
     }
@@ -519,6 +510,10 @@ export class VtlEvaluator {
     // If missing ref, print literal
     if (VtlEvaluator.isMissingRef(value)) {
       this.stringBuilder.appendString(value.literal);
+      return;
+    }
+    if (VtlEvaluator.isDotChain(value)) {
+      this.stringBuilder.appendString(value.value);
       return;
     }
     const normalized = this.normalizeInterpolatedValue(value);

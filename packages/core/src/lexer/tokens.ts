@@ -35,7 +35,32 @@ export const NullLiteral = createToken({
 // Identifiers and references
 export const Identifier = createToken({
   name: 'Identifier',
-  pattern: /[a-zA-Z_$][a-zA-Z0-9_$]*/,
+  // Custom matcher to avoid swallowing a trailing underscore that is immediately
+  // followed by a new interpolation (e.g., "$elem.id_$elem.secret"), so that
+  // the '_' remains part of template text.
+  pattern: {
+    exec: (text: string, start: number) => {
+      const len = text.length;
+      if (start >= len) return null;
+      const c0 = text.charCodeAt(start);
+      const isAlpha = (c: number) => (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95;
+      const isAlnum = (c: number) => (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95;
+      if (!isAlpha(c0)) return null;
+      let i = start + 1;
+      while (i < len && isAlnum(text.charCodeAt(i))) i++;
+      // If the last consumed char is '_' and the next char starts an interpolation ($),
+      // drop the trailing underscore from the identifier so '_' stays as text.
+      if (i > start + 1 && text.charCodeAt(i - 1) === 95 /* '_' */ && text.charCodeAt(i) === 36 /* '$' */) {
+        i--; 
+      }
+      const image = text.slice(start, i);
+      const matched = [image] as unknown as RegExpExecArray;
+      matched.index = start;
+      matched.input = text;
+      return matched;
+    }
+  },
+  line_breaks: false,
   categories: [AnyTextFragment],
 });
 
@@ -104,7 +129,7 @@ export const RBracket = createToken({
 export const Dot = createToken({
   name: 'Dot',
   pattern: /\./,
-
+  categories: [AnyTextFragment],
 });
 
 export const Comma = createToken({
@@ -153,7 +178,8 @@ export const Star = createToken({
 export const Slash = createToken({
   name: 'Slash',
   pattern: /\//,
-
+  // Allow '/' to be treated as plain text when not in an expression
+  categories: [AnyTextFragment],
 });
 
 export const Mod = createToken({
@@ -306,9 +332,27 @@ export const TemplateText = createToken({
       const len = text.length;
       if (startOffset >= len) return null;
 
-      // current char cannot start with '#' or '$' or newline
+      // current char cannot start with '#', '$', or newline
+      // Quotes are allowed in template text unless they appear in an expression context
       const c0 = text.charCodeAt(startOffset);
       if (c0 === 35 /*#*/ || c0 === 36 /*$*/ || c0 === 10 /*\n*/ || c0 === 13 /*\r*/) return null;
+      if (c0 === 34 /*"*/ || c0 === 39 /*'*/) {
+        // Look back for previous non-space; if it's a code-leading char, treat as StringLiteral (not TemplateText)
+        let k = startOffset - 1;
+        while (k >= 0) {
+          const pc = text.charCodeAt(k);
+          if (pc !== 32 /*space*/ && pc !== 9 /*tab*/) break;
+          k--;
+        }
+        if (k >= 0) {
+          const prev = text.charCodeAt(k);
+          const isCodeLead = (code: number) => (
+            code === 40 /*(*/ || code === 61 /*=*/ || code === 58 /*:*/ ||
+            code === 44 /*,*/ || code === 91 /*[*/ || code === 123 /*{*/
+          );
+          if (isCodeLead(prev)) return null;
+        }
+      }
 
       // If starting on spaces/tabs, allow TemplateText only when the next non-space
       // character is not an operator/bracket typical of expression context. This means
@@ -410,9 +454,6 @@ export const allTokens: TokenType[] = [
   QuietRef,
   DollarRef,
 
-  // String literals
-  StringLiteral,
-
   // Numbers and booleans
   NumberLiteral,
   BooleanLiteral,
@@ -454,6 +495,9 @@ export const allTokens: TokenType[] = [
 
   // Template text must come after all other tokens to avoid conflicts
   TemplateText,
+
+  // String literals (placed after TemplateText so quoted text in templates is not consumed as literals)
+  StringLiteral,
 
   // Identifiers (after keywords)
   Identifier,

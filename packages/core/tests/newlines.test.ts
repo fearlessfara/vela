@@ -8,6 +8,7 @@ describe('Newline semantics (Velocity parity)', () => {
 Item:$i
 #end`;
     const out = engine.renderTemplate({ template: tpl }).output.trimEnd();
+    // Match Velocity Java behavior: no leading newline after directive line
     expect(out).toBe('Item:1\nItem:2\nItem:3');
   });
 
@@ -23,4 +24,3 @@ no
     expect(outFalse).toBe('no');
   });
 });
-
