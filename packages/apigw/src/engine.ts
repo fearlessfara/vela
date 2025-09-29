@@ -74,6 +74,7 @@ export class VtlEngine {
   ): EvaluationContext {
     const evaluationContext: EvaluationContext = {
       flags,
+      newlineMode: 'apigw',
     };
 
     // Add $util provider if enabled

@@ -19,7 +19,7 @@ describe('cstToAst', () => {
     const [text, interpolation] = ast.segments as any[];
     expect(text).toEqual({
       type: 'Text',
-      value: 'Hello',
+      value: 'Hello ',
       location: {
         start: expect.any(Object),
         end: expect.any(Object),
@@ -88,4 +88,3 @@ describe('cstToAst', () => {
     });
   });
 });
-

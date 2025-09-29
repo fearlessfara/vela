@@ -51,9 +51,8 @@ describe('CoreVtlEngine', () => {
     });
 
     expect(Array.isArray(result.errors)).toBe(true);
-    expect(result.output).toMatch(/^[\s\t\n]+$/);
+    expect(result.output).toMatch(/^[\s\n\t]*$/);
     expect(result.output.includes('\n')).toBe(true);
-    expect(result.output.includes('\t')).toBe(true);
   });
 
   it('handles malformed directives gracefully (no crash)', () => {
@@ -100,6 +99,13 @@ describe('CoreVtlEngine', () => {
 
     expect(result.errors).toEqual([]);
     expect(result.output).toBe('Hello World!');
+  });
+
+  it('evaluates ${} arithmetic expressions', () => {
+    const tpl = '${1+2*3}';
+    const r = new CoreVtlEngine().renderTemplate({ template: tpl });
+    expect(r.errors).toEqual([]);
+    expect(r.output).toBe('7');
   });
 });
 

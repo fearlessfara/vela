@@ -24,7 +24,9 @@
     "test:watch": "npm -w packages/core run test:watch & npm -w packages/apigw run test:watch",
     "test:single": "echo 'Deprecated: use vitest conformance tests' && exit 0",
     "dev": "tsc --watch",
-    "clean": "rm -rf dist dist-browser"
+    "clean": "rm -rf dist dist-browser",
+    "compare:velocity:java": "mvn -q -f tools/velocity-java-runner/pom.xml -DskipTests package",
+    "compare:velocity": "npm run compare:velocity:java && npm -w packages/core run build && tsc -p scripts/tsconfig.json && node dist/scripts/compare-velocity.js"
   },
   "devDependencies": {
     "@rollup/plugin-node-resolve": "^16.0.1",

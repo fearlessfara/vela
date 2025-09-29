@@ -9,8 +9,8 @@ export const AnyTextFragment = createToken({ name: 'AnyTextFragment', pattern: L
 // Literals
 export const StringLiteral = createToken({
   name: 'StringLiteral',
-  // Do not allow '$' inside string literal so that template interpolations inside quotes are not swallowed.
-  pattern: /"(?:[^"\\$]|\\.)*"|'(?:[^'\\$]|\\.)*'/,
+  // Allow '$' chars inside quoted strings in expressions (quoted strings are literals in Velocity)
+  pattern: /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/,
   categories: [AnyTextFragment],
 });
 
@@ -306,9 +306,33 @@ export const TemplateText = createToken({
       const len = text.length;
       if (startOffset >= len) return null;
 
-      // current char cannot start with '#' or '$' or whitespace/newline
+      // current char cannot start with '#' or '$' or newline
       const c0 = text.charCodeAt(startOffset);
-      if (c0 === 35 /*#*/ || c0 === 36 /*$*/ || c0 === 10 /*\n*/ || c0 === 13 /*\r*/ || c0 === 32 /*space*/ || c0 === 9 /*tab*/) return null;
+      if (c0 === 35 /*#*/ || c0 === 36 /*$*/ || c0 === 10 /*\n*/ || c0 === 13 /*\r*/) return null;
+
+      // If starting on spaces/tabs, allow TemplateText only when the next non-space
+      // character is not an operator/bracket typical of expression context. This means
+      // we preserve spaces in normal text (e.g., " Request:") but do not swallow
+      // spaces inside directive expressions like "1.5 < 2.0" where next non-space is '<'.
+      if (c0 === 32 /*space*/ || c0 === 9 /*tab*/) {
+        let j = startOffset;
+        while (j < len) {
+          const ch = text.charCodeAt(j);
+          if (ch !== 32 && ch !== 9) break;
+        	  j++;
+        }
+        const next = j < len ? text.charCodeAt(j) : -1;
+        // Block when next non-space looks like expression context
+        const isOp = (code: number) => (
+          code === 35 /*#*/ ||
+          code === 60 /*<*/ || code === 62 /*>*/ || code === 61 /*=*/ ||
+          code === 43 /*+*/ || code === 45 /*-*/ || code === 42 /**/ || code === 47 /*/*/ ||
+          code === 37 /*%*/ || code === 38 /*&*/ || code === 124 /*|*/ ||
+          code === 41 /*)*/ || code === 93 /*]*/ || code === 125 /*}*/ ||
+          code === 44 /*,*/ || code === 58 /*:*/
+        );
+        if (next !== -1 && isOp(next)) return null;
+      }
 
       // do not start if previous char is a code-leading character
       if (startOffset > 0) {

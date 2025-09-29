@@ -133,15 +133,6 @@ export class VtlParser extends CstParser {
         ALT: () => this.SUBRULE(this.arrayLiteral),
       },
       {
-        GATE: () => {
-          const t = this.LA(1).tokenType;
-          return t === DollarRef || t === QuietRef || t === InterpStart ||
-                 t === StringLiteral || t === NumberLiteral || t === BooleanLiteral ||
-                 t === NullLiteral || t === Identifier;
-        },
-        ALT: () => this.SUBRULE(this.expression),
-      },
-      {
         ALT: () => {
           this.MANY(() => {
             this.SUBRULE(this.segment);

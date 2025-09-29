@@ -1,9 +1,9 @@
 /** AWS-SPEC: Core VTL Engine | OWNER: vela | STATUS: READY */
 
-import { VtlParser } from '../parser/vtlParser';
-import { cstToAst } from '../parser/cstToAst';
-import { VtlEvaluator, EvaluationContext } from '../runtime/evaluator';
-import { ProviderRegistry, DefaultProviderRegistry } from './providers';
+import { VtlParser } from '../parser/vtlParser.js';
+import { cstToAst } from '../parser/cstToAst.js';
+import { VtlEvaluator, EvaluationContext } from '../runtime/evaluator.js';
+import { ProviderRegistry, DefaultProviderRegistry } from './providers.js';
 
 // APIGW:Core VTL Engine
 
@@ -67,6 +67,7 @@ export class CoreVtlEngine {
     _providers: ProviderRegistry
   ): EvaluationContext {
     const evaluationContext: EvaluationContext = {
+      newlineMode: 'velocity',
       ...context,
     };
 

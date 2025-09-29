@@ -8,7 +8,6 @@
     "sourceMap": true,
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
     "noEmit": false
   },
   "include": [
