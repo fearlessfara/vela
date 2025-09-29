@@ -26,7 +26,7 @@ describe('ApiGatewayVtlAdapter', () => {
     });
 
     expect(result.errors).toEqual([]);
-    expect(result.output).toBe('Request:req-123 Query:42 Encoded:aGk=');
+    expect(result.output).toBe('Request: req-123 Query: 42 Encoded: aGk=');
   });
 
   it('renders JSON templates with provider lookups and formats values into valid JSON', () => {
@@ -212,7 +212,7 @@ describe('ApiGatewayVtlAdapter', () => {
     });
 
     expect(result.errors).toEqual([]);
-    expect(result.output).toBe('Provided:ctx-999');
+    expect(result.output).toBe('Provided: ctx-999');
   });
 
   it('returns parser errors for invalid templates', () => {
@@ -255,7 +255,7 @@ describe('ApiGatewayVtlAdapter', () => {
     });
 
     expect(result.errors).toEqual([]);
-    expect(result.output).toBe('Request ID:test-request-123');
+    expect(result.output).toBe('Request ID: test-request-123');
   });
 });
 

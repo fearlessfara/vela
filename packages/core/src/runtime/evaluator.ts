@@ -171,7 +171,10 @@ export class VtlEvaluator {
     }
 
     this.scopeManager.pushScope();
-    
+    const bodySegments = forEachDirective.body;
+    const firstIsText = bodySegments.length > 0 && (bodySegments[0] as any).type === 'Text';
+    const startsWithNewline = !!(firstIsText && typeof (bodySegments[0] as any).value === 'string' && (((bodySegments[0] as any).value as string).startsWith('\r\n') || ((bodySegments[0] as any).value as string).startsWith('\n')));
+    const hasDirectiveInBody = bodySegments.some((seg: any) => seg.type && seg.type.endsWith('Directive'));
     try {
       for (let index = 0; index < items.length; index++) {
         if (this.shouldStop || this.shouldBreak) {
@@ -199,9 +202,24 @@ export class VtlEvaluator {
         // Set both the loop variable and the $foreach object
         this.scopeManager.setVariable(forEachDirective.variable, item);
         this.scopeManager.setVariable('foreach', foreachObject);
-        
-        for (const segment of forEachDirective.body) {
+        let firstInIteration = true;
+        for (const segment of bodySegments) {
+          if (firstInIteration && startsWithNewline && (segment as any).type === 'Text') {
+            const text = (segment as any).value as string;
+            // Trim leading newline on the first iteration always. On subsequent iterations, trim only
+            // when the body does not contain any directives (to match observed APIGW formatting).
+            if (index === 0 || !hasDirectiveInBody) {
+              const trimmed = text.startsWith('\r\n') ? text.slice(2) : text.slice(1);
+              if (trimmed.length > 0) this.stringBuilder.appendString(trimmed);
+              firstInIteration = false;
+              continue;
+            }
+            // Keep the newline when body has directives and this is not the first iteration
+            // fall through to normal evaluation
+            firstInIteration = false;
+          }
           this.evaluateSegment(segment);
+          firstInIteration = false;
         }
       }
     } finally {
@@ -467,10 +485,26 @@ export class VtlEvaluator {
     if (this.jsonOutputMode) {
       if (typeof value === 'string') {
         const trimmed = value.trim();
-        if (!this.isJsonLiteral(trimmed)) {
-          return JSON.stringify(value);
+        // If string looks like JSON, try to parse and emit JSON value
+        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            return JSON.stringify(parsed);
+          } catch {
+            // Fall through to escaped content
+          }
         }
-        return value;
+        // If string is primitive literal (true/false/null or numeric), return as-is
+        if (this.isJsonLiteral(trimmed)) {
+          return value;
+        }
+        // Otherwise, return JSON-escaped content without surrounding quotes
+        try {
+          const escaped = JSON.stringify(value);
+          return escaped.slice(1, -1);
+        } catch {
+          return value;
+        }
       }
       // For non-strings in JSON output, always serialize
       try {
@@ -518,10 +552,11 @@ export class VtlEvaluator {
         if (expr && (expr.type === 'ObjectLiteral' || expr.type === 'ArrayLiteral')) {
           return true;
         }
-        return false;
+        // Continue scanning; not enough info yet
+        continue;
       }
-      // On encountering a directive, it's not pure JSON
-      return false;
+      // Directives can still exist in JSON templates; continue scanning
+      continue;
     }
     return false;
   }

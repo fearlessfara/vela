@@ -9,22 +9,27 @@ export const AnyTextFragment = createToken({ name: 'AnyTextFragment', pattern: L
 // Literals
 export const StringLiteral = createToken({
   name: 'StringLiteral',
-  pattern: /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/,
+  // Do not allow '$' inside string literal so that template interpolations inside quotes are not swallowed.
+  pattern: /"(?:[^"\\$]|\\.)*"|'(?:[^'\\$]|\\.)*'/,
+  categories: [AnyTextFragment],
 });
 
 export const NumberLiteral = createToken({
   name: 'NumberLiteral',
   pattern: /-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/,
+  categories: [AnyTextFragment],
 });
 
 export const BooleanLiteral = createToken({
   name: 'BooleanLiteral',
   pattern: /\b(true|false)\b/,
+  categories: [AnyTextFragment],
 });
 
 export const NullLiteral = createToken({
   name: 'NullLiteral',
   pattern: /\bnull\b/,
+  categories: [AnyTextFragment],
 });
 
 // Identifiers and references
@@ -301,9 +306,9 @@ export const TemplateText = createToken({
       const len = text.length;
       if (startOffset >= len) return null;
 
-      // current char cannot start with '#' or '$' or newline
+      // current char cannot start with '#' or '$' or whitespace/newline
       const c0 = text.charCodeAt(startOffset);
-      if (c0 === 35 /*#*/ || c0 === 36 /*$*/ || c0 === 10 /*\n*/ || c0 === 13 /*\r*/) return null;
+      if (c0 === 35 /*#*/ || c0 === 36 /*$*/ || c0 === 10 /*\n*/ || c0 === 13 /*\r*/ || c0 === 32 /*space*/ || c0 === 9 /*tab*/) return null;
 
       // do not start if previous char is a code-leading character
       if (startOffset > 0) {
@@ -325,13 +330,7 @@ export const TemplateText = createToken({
         i++;
       }
       
-      // Don't consume spaces before operators
-      if (i > startOffset) {
-        const lastChar = text.charCodeAt(i - 1);
-        if (lastChar === 32) { // space
-          i--;
-        }
-      }
+      // Preserve spaces as part of template text to maintain formatting between interpolations
       if (i === startOffset) return null;
 
       const image = text.slice(startOffset, i);

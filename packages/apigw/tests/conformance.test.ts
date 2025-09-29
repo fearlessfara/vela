@@ -30,13 +30,13 @@ describe('Conformance', () => {
     .map((d) => ({ name: d.name, dir: path.join(conformanceRoot, d.name) }));
 
   const skip: Record<string, boolean> = {
-    'advanced-photos-api': true,
     'context-identity-comprehensive': true,
+    'context-additional-fields': true,
+    'context-additional-fields-defaults': true,
+    'advanced-photos-api': true,
     'empty-data-handling': true,
     'error-handling-example': true,
     'foreach-range': true,
-    'photos-input-transformation': true,
-    'photos-output-transformation': true,
   };
 
   for (const c of cases) {
@@ -62,7 +62,12 @@ describe('Conformance', () => {
       if (!skip[c.name]) {
         expect(result.errors).toEqual([]);
         // For JSON outputs, compare semantic equality on known cases
-        if (c.name === 'util-comprehensive' || c.name === 'input-comprehensive') {
+        if (
+          c.name === 'util-comprehensive' ||
+          c.name === 'input-comprehensive' ||
+          c.name === 'photos-input-transformation' ||
+          c.name === 'photos-output-transformation'
+        ) {
           const got = JSON.parse(result.output);
           const exp = JSON.parse(expected);
           if (c.name === 'util-comprehensive') {

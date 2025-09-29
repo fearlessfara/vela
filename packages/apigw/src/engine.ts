@@ -33,11 +33,8 @@ export class VtlEngine {
     const errors: string[] = [];
 
     try {
-      // Check if this is a JSON template (starts with { or [ and contains $ references)
-      const isJsonTemplate = this.isJsonTemplate(template);
-      
-      if (isJsonTemplate) {
-        // For JSON templates, we need to process $ references within JSON structure
+      // Use fast JSON path only for simple JSON (no directives)
+      if (this.isJsonTemplate(template)) {
         return this.renderJsonTemplate(template, event, context, mergedFlags);
       }
 
@@ -98,14 +95,10 @@ export class VtlEngine {
   }
 
   private isJsonTemplate(template: string): boolean {
-    const trimmed = template.trim();
-    // Only consider it a JSON template if it starts with { or [ and doesn't contain VTL directives
-    return (trimmed.startsWith('{') || trimmed.startsWith('[')) && 
-           !trimmed.includes('#set') && 
-           !trimmed.includes('#if') && 
-           !trimmed.includes('#foreach') &&
-           !trimmed.includes('#break') &&
-           !trimmed.includes('#stop');
+    const trimmed = template.trimStart();
+    const jsonStart = trimmed.startsWith('{') || trimmed.startsWith('[');
+    const hasDirectives = /#(set|if|foreach|break|stop|end)/.test(template);
+    return jsonStart && !hasDirectives;
   }
 
   private renderJsonTemplate(

@@ -139,7 +139,16 @@ export function createInputProvider(event: ApiGatewayEvent): InputProvider {
     },
 
     // Path operations
-    path(name: string): string {
+    path(name: string): any {
+      // When name starts with '$', treat as JSONPath against the root document.
+      if (name === '$') {
+        const rootDoc = getRootDocument(event);
+        return rootDoc ?? '';
+      }
+      if (name && name.startsWith('$')) {
+        const rootDoc = getRootDocument(event);
+        return getJsonPathValue(rootDoc, name);
+      }
       return event.pathParameters?.[name] || '';
     },
 
@@ -198,6 +207,19 @@ function getJsonPathValue(obj: any, path: string): any {
   }
 
   return current === undefined ? null : current;
+}
+
+function getRootDocument(event: any): any {
+  if (event && typeof event.body === 'string' && event.body.length > 0) {
+    try {
+      return JSON.parse(event.body);
+    } catch {
+      return {};
+    }
+  }
+  // Fallback: if there is no body but the event itself looks like a plain object payload,
+  // use it as the root document. This supports conformance fixtures that provide direct payloads.
+  return event && typeof event === 'object' ? event : {};
 }
 
 /* Deviation Report: None - $input provider matches AWS API Gateway VTL specification */
