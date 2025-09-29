@@ -10,6 +10,10 @@ dist/
 dist-browser/
 build/
 out/
+lib/
+target/
+.turbo/
+.vite/
 
 # TypeScript
 *.tsbuildinfo
@@ -98,6 +102,9 @@ debug-*
 # Nuxt.js build / generate output
 .nuxt
 dist
+
+# Maven build outputs
+tools/velocity-java-runner/target/
 
 # Storybook build outputs
 .out
