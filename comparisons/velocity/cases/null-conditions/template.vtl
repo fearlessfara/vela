@@ -1,0 +1,134 @@
+#if( $null == $otherNull )
+foo
+#else
+bar
+#end
+#if( $null == $nullToString )
+foo
+#else
+bar
+#end
+#if( $nullToString == $null )
+foo
+#else
+bar
+#end
+#if( $nullToString == $notnull )
+foo
+#else
+bar
+#end
+#if( $null == $notnull )
+foo
+#else
+bar
+#end
+#if( $notnull == $nullToString )
+foo
+#else
+bar
+#end
+#if( $notnull == $null )
+foo
+#else
+bar
+#end
+
+#if( $null != $otherNull )
+foo
+#else
+bar
+#end
+#if( $null != $nullToString )
+foo
+#else
+bar
+#end
+#if( $nullToString != $null )
+foo
+#else
+bar
+#end
+#if( $nullToString != $notnull )
+foo
+#else
+bar
+#end
+#if( $null != $notnull )
+foo
+#else
+bar
+#end
+#if( $notnull != $nullToString )
+foo
+#else
+bar
+#end
+#if( $notnull != $null )
+foo
+#else
+bar
+#end
+
+#if( $null )
+foo
+#else
+bar
+#end
+#if( $nullToString )
+foo
+#else
+bar
+#end
+#if( !$null )
+foo
+#else
+bar
+#end
+#if( !$nullToString )
+foo
+#else
+bar
+#end
+
+#if( $null && $nullToString )
+foo
+#else
+bar
+#end
+#if( $nullToString && $null )
+foo
+#else
+bar
+#end
+#if( $null && $notnull )
+foo
+#else
+bar
+#end
+#if( $notnull && $nullToString )
+foo
+#else
+bar
+#end
+
+#if( $null || $nullToString )
+foo
+#else
+bar
+#end
+#if( $nullToString || $null )
+foo
+#else
+bar
+#end
+#if( $null || $notnull )
+foo
+#else
+bar
+#end
+#if( $notnull || $nullToString )
+foo
+#else
+bar
+#end

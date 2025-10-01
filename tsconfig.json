@@ -23,5 +23,5 @@
     "resolveJsonModule": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "tests", "tools"]
+  "exclude": ["node_modules", "dist", "tests", "tools", "vendor/velocity-engine/**"]
 }

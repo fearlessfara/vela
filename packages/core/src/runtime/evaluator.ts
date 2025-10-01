@@ -289,15 +289,18 @@ export class VtlEvaluator {
     const value = this.scopeManager.getVariable(ref.name);
 
     if (value === undefined) {
+      // Special-case Velocity/VTL null constant
+      if (ref.name === 'null') {
+        return null;
+      }
       const provider = this.getBuiltInProvider(ref.name);
       if (provider !== undefined) {
         return provider;
       }
-
+      // Undefined variables: return missing marker unless quiet
       if (ref.quiet) {
         return '';
       }
-      // Velocity: undefined variables render as literal $ref
       return VtlEvaluator.missing(`$${ref.name}`);
     }
     
@@ -413,34 +416,37 @@ export class VtlEvaluator {
   private evaluateBinaryOperation(op: BinaryOperation): any {
     const left = this.evaluateExpression(op.left);
     const right = this.evaluateExpression(op.right);
+    // Treat missing references as null for comparison/logical operations
+    const l = (left && typeof left === 'object' && (left as any).__missingRef === true) ? null : left;
+    const r = (right && typeof right === 'object' && (right as any).__missingRef === true) ? null : right;
     
     switch (op.operator) {
       case '+':
-        return left + right;
+        return l + r;
       case '-':
-        return left - right;
+        return l - r;
       case '*':
-        return left * right;
+        return l * r;
       case '/':
-        return right !== 0 ? left / right : 0;
+        return r !== 0 ? l / r : 0;
       case '%':
-        return right !== 0 ? left % right : 0;
+        return r !== 0 ? l % r : 0;
       case '==':
-        return left == right;
+        return (l as any) == (r as any);
       case '!=':
-        return left != right;
+        return (l as any) != (r as any);
       case '<':
-        return left < right;
+        return (l as any) < (r as any);
       case '<=':
-        return left <= right;
+        return (l as any) <= (r as any);
       case '>':
-        return left > right;
+        return (l as any) > (r as any);
       case '>=':
-        return left >= right;
+        return (l as any) >= (r as any);
       case '&&':
-        return isTruthy(left) && isTruthy(right);
+        return isTruthy(l) && isTruthy(r);
       case '||':
-        return isTruthy(left) || isTruthy(right);
+        return isTruthy(l) || isTruthy(r);
       default:
         throw new Error(`Unknown binary operator: ${op.operator}`);
     }
@@ -665,6 +671,10 @@ export class VtlEvaluator {
 
 // Helper functions for APIGW truthiness and type checking
 function isTruthy(value: any): boolean {
+  // Treat missing references as falsy
+  if (value && typeof value === 'object' && (value as any).__missingRef === true) {
+    return false;
+  }
   if (value === null || value === undefined) {
     return false;
   }

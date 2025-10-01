@@ -9,8 +9,9 @@ export const AnyTextFragment = createToken({ name: 'AnyTextFragment', pattern: L
 // Literals
 export const StringLiteral = createToken({
   name: 'StringLiteral',
-  // Allow '$' chars inside quoted strings in expressions (quoted strings are literals in Velocity)
-  pattern: /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/,
+  // Velocity-style quoting: double quotes escaped by doubling ("") and single quotes by ('')
+  // Backslash escapes are not used in Velocity string literals.
+  pattern: /"(?:[^"]|"")*"|'(?:[^']|'')*'/,
   categories: [AnyTextFragment],
 });
 
@@ -369,6 +370,7 @@ export const TemplateText = createToken({
         // Block when next non-space looks like expression context
         const isOp = (code: number) => (
           code === 35 /*#*/ ||
+          code === 33 /*!*/ ||
           code === 60 /*<*/ || code === 62 /*>*/ || code === 61 /*=*/ ||
           code === 43 /*+*/ || code === 45 /*-*/ || code === 42 /**/ || code === 47 /*/*/ ||
           code === 37 /*%*/ || code === 38 /*&*/ || code === 124 /*|*/ ||

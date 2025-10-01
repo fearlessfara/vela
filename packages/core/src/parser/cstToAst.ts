@@ -363,9 +363,16 @@ function literalToAst(literal: CstNode): Literal {
   let value: string | number | boolean | null;
   
   if (literal.children.StringLiteral) {
-    // Remove quotes and unescape
-    const str = (token as any).image;
-    value = str.slice(1, -1).replace(/\\(.)/g, '$1');
+    // Remove quotes and unescape using Velocity-style doubling
+    const str = (token as any).image as string;
+    const quote = str[0];
+    let inner = str.slice(1, -1);
+    if (quote === '"') {
+      inner = inner.replace(/""/g, '"');
+    } else if (quote === "'") {
+      inner = inner.replace(/''/g, "'");
+    }
+    value = inner;
   } else if (literal.children.NumberLiteral) {
     value = parseFloat((token as any).image);
   } else if (literal.children.BooleanLiteral) {
