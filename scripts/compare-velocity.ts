@@ -1,8 +1,28 @@
 import { spawnSync } from 'node:child_process';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 type CaseResult = { name: string; output: string };
+
+type Args = {
+  casesRoot: string;
+  only: string[]; // substring filters
+  list: boolean;
+  quiet: boolean;
+};
+
+function parseArgs(argv: string[]): Args {
+  const out: Args = { casesRoot: 'comparisons/velocity/cases', only: [], list: false, quiet: false };
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i]!;
+    if (a === '--casesRoot' && argv[i + 1]) { out.casesRoot = argv[++i]!; continue; }
+    if (a === '--only' && argv[i + 1]) { out.only.push(argv[++i]!); continue; }
+    if (a === '--list') { out.list = true; continue; }
+    if (a === '--quiet') { out.quiet = true; continue; }
+  }
+  out.casesRoot = resolve(out.casesRoot);
+  return out;
+}
 
 function runJava(casesRoot: string): CaseResult[] {
   const mvn = spawnSync('mvn', ['-q', '-f', 'tools/velocity-java-runner/pom.xml', '-DskipTests', 'package'], { stdio: 'inherit' });
@@ -52,17 +72,27 @@ function diff(a: string, b: string): string | null {
 }
 
 async function main() {
-  const casesRoot = 'comparisons/velocity/cases';
-  const javaResults = runJava(casesRoot);
-  const tsResults = await runTs(casesRoot);
+  const args = parseArgs(process.argv.slice(2));
+  const casesRoot = args.casesRoot;
+  const allJavaResults = runJava(casesRoot);
+  const allTsResults = await runTs(casesRoot);
+  const filters = args.only;
+  const pred = (name: string) => filters.length === 0 || filters.some(f => name.includes(f));
+  const javaResults = allJavaResults.filter(r => pred(r.name));
+  const tsResults = allTsResults.filter(r => pred(r.name));
   const mapTs = new Map(tsResults.map(r => [r.name, r.output]));
+
+  if (args.list) {
+    for (const r of allTsResults) console.log(r.name);
+    process.exit(0);
+  }
 
   let passed = 0, failed = 0;
   for (const jr of javaResults) {
     const tsOut = mapTs.get(jr.name) ?? '';
     const d = diff(tsOut, jr.output);
     if (d === null) {
-      console.log(`OK  ${jr.name}`);
+      if (!args.quiet) console.log(`OK  ${jr.name}`);
       passed++;
     } else {
       console.log(`DIFF ${jr.name}`);

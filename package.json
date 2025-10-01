@@ -26,7 +26,8 @@
     "dev": "tsc --watch",
     "clean": "rm -rf dist dist-browser",
     "compare:velocity:java": "mvn -q -f tools/velocity-java-runner/pom.xml -DskipTests package",
-    "compare:velocity": "npm run compare:velocity:java && npm -w packages/core run build && tsc -p scripts/tsconfig.json && node dist/scripts/compare-velocity.js"
+    "compare:velocity": "npm run compare:velocity:java && npm -w packages/core run build && tsc -p scripts/tsconfig.json && node dist/scripts/compare-velocity.js",
+    "compare:velocity:new": "tsc -p scripts/tsconfig.json && node dist/scripts/scaffold-velocity-case.js"
   },
   "devDependencies": {
     "@rollup/plugin-node-resolve": "^16.0.1",
