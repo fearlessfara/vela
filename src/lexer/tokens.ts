@@ -1,8 +1,6 @@
-/** AWS-SPEC: Lexer Tokens | OWNER: vela | STATUS: READY */
+/** Apache Velocity: Lexer Tokens | OWNER: vela | STATUS: READY */
 
 import { createToken, TokenType, Lexer } from 'chevrotain';
-
-// APIGW:Lexer Tokens
 // Category for any token that can be treated as plain template text
 export const AnyTextFragment = createToken({ name: 'AnyTextFragment', pattern: Lexer.NA });
 
@@ -446,4 +444,3 @@ export const createLexer = () => {
   return new Lexer(allTokens);
 };
 
-/* Deviation Report: None - Token definitions match AWS API Gateway VTL specification */

@@ -1,0 +1,3 @@
+[submodule "vendor/velocity-engine"]
+	path = vendor/velocity-engine
+	url = https://github.com/apache/velocity-engine.git

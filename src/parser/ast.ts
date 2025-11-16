@@ -1,6 +1,4 @@
-/** AWS-SPEC: AST Types | OWNER: vela | STATUS: READY */
-
-// APIGW:AST Types
+/** Apache Velocity: AST Types | OWNER: vela | STATUS: READY */
 
 export interface Position {
   line: number;
@@ -195,4 +193,3 @@ export interface TernaryOperation extends BaseNode {
   elseExpression: Expression;
 }
 
-/* Deviation Report: None - AST types match AWS API Gateway VTL specification */

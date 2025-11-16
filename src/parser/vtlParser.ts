@@ -1,4 +1,4 @@
-/** AWS-SPEC: VTL Parser | OWNER: vela | STATUS: READY */
+/** Apache Velocity: VTL Parser | OWNER: vela | STATUS: READY */
 
 import { CstParser, Lexer } from 'chevrotain';
 import {
@@ -49,8 +49,6 @@ import {
   EndDirective,
   AnyTextFragment,
 } from '../lexer/tokens.js';
-
-// APIGW:VTL Parser
 
 export class VtlParser extends CstParser {
   private debugMode: boolean = false;
@@ -579,4 +577,3 @@ export class VtlParser extends CstParser {
 
 }
 
-/* Deviation Report: None - Parser rules match AWS API Gateway VTL specification */
