@@ -37,6 +37,7 @@ export declare const Le: TokenType;
 export declare const Gt: TokenType;
 export declare const Ge: TokenType;
 export declare const Range: TokenType;
+export declare const EscapedDirective: TokenType;
 export declare const Hash: TokenType;
 export declare const IfDirective: TokenType;
 export declare const ElseIfDirective: TokenType;

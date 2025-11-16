@@ -3,16 +3,15 @@
 
 import { readFile, writeFile, mkdir, readdir } from 'fs/promises';
 import { join } from 'path';
-import { existsSync } from 'fs';
 
 const VELOCITY_TEST_DIR = join(process.cwd(), 'vendor/velocity-engine/velocity-engine-core/src/test/resources');
 const OUR_TEST_DIR = join(process.cwd(), 'tests/velocity');
 
-interface TestTemplate {
-  name: string;
-  template: string;
-  context: Record<string, any>;
-}
+// interface TestTemplate {
+//   name: string;
+//   template: string;
+//   context: Record<string, any>;
+// }
 
 async function findTestTemplates(): Promise<string[]> {
   const templates: string[] = [];

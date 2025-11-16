@@ -313,7 +313,28 @@ export class VtlEvaluator {
   }
 
   private evaluateLiteral(literal: Literal): any {
+    // Handle string interpolation for double-quoted strings
+    if (literal.isDoubleQuoted && typeof literal.rawValue === 'string') {
+      // Parse and evaluate the string as a mini-template
+      return this.interpolateString(literal.rawValue);
+    }
     return literal.value;
+  }
+
+  /**
+   * Interpolate variables in a string (for double-quoted strings)
+   * Handles $var and ${expr} patterns
+   */
+  private interpolateString(str: string): string {
+    // Simple regex-based interpolation for $var patterns
+    // This doesn't handle complex ${expr} yet, but covers most cases
+    return str.replace(/\$(!?)([a-zA-Z_$][a-zA-Z0-9_$]*)/g, (match, quiet, varName) => {
+      const value = this.scopeManager.getVariable(varName) ?? this.getContextVariable(varName);
+      if (value === undefined || value === null) {
+        return quiet ? '' : match; // Quiet ref returns empty, normal ref returns literal
+      }
+      return String(value);
+    });
   }
 
   private evaluateVariableReference(ref: VariableReference): any {

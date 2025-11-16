@@ -29,6 +29,8 @@ export type Segment = Text | Interpolation | VariableReference | Directive;
 export interface Text extends BaseNode {
   type: 'Text';
   value: string;
+  // Space gobbling: if true, leading newline should be stripped in certain contexts
+  gobbleLeadingNewline?: boolean;
 }
 
 // Interpolation
@@ -125,6 +127,10 @@ export type Expression =
 export interface Literal extends BaseNode {
   type: 'Literal';
   value: string | number | boolean | null;
+  // For string literals: track if it's double-quoted (needs interpolation) or single-quoted (literal)
+  isDoubleQuoted?: boolean;
+  // Store raw string before processing (for interpolation)
+  rawValue?: string;
 }
 
 // Variable references

@@ -51,6 +51,7 @@ import {
   IncludeDirective,
   EndDirective,
   AnyTextFragment,
+  Newline,
 } from '../lexer/tokens.js';
 
 export class VtlParser extends CstParser {
@@ -162,7 +163,8 @@ export class VtlParser extends CstParser {
             t === DollarRef || t === QuietRef || t === InterpStart ||
             t === IfDirective || t === ElseIfDirective || t === ElseDirective ||
             t === SetDirective || t === ForEachDirective || t === BreakDirective ||
-            t === StopDirective || t === MacroDirective || t === EndDirective
+            t === StopDirective || t === MacroDirective || t === EndDirective ||
+            t === EvaluateDirective || t === ParseDirective || t === IncludeDirective
           );
         },
         ALT: () => this.SUBRULE(this.text),
@@ -302,7 +304,32 @@ export class VtlParser extends CstParser {
     this.CONSUME(ForEachDirective, { LABEL: 'foreachKeyword' });
     this.CONSUME(LParen);
     this.CONSUME(DollarRef, { LABEL: 'variable' });
-    this.CONSUME(InKeyword, { LABEL: 'inKeyword' });
+    // "in" keyword: can be InKeyword token, TemplateText "in ", or Identifier "in"
+    this.OR([
+      { ALT: () => this.CONSUME(InKeyword, { LABEL: 'inKeyword' }) },
+      {
+        GATE: () => {
+          const la = this.LA(1);
+          // Check if it's any text fragment token with "in" content
+          const isTextToken = la.tokenType.CATEGORIES?.some((c: any) => c.name === 'AnyTextFragment') ?? false;
+          return isTextToken && la.image.trim() === 'in';
+        },
+        ALT: () => {
+          // TemplateText or any AnyTextFragment capturing "in " or similar
+          this.CONSUME(AnyTextFragment, { LABEL: 'inText' });
+        },
+      },
+      {
+        GATE: () => {
+          const la = this.LA(1);
+          return la.tokenType.name === 'Identifier' && la.image === 'in';
+        },
+        ALT: () => {
+          // Identifier "in" + optional whitespace/newlines
+          this.CONSUME(Identifier, { LABEL: 'inWord' });
+        },
+      },
+    ]);
     this.SUBRULE(this.expression, { LABEL: 'iterable' });
     this.CONSUME(RParen);
     this.MANY({
@@ -410,9 +437,13 @@ export class VtlParser extends CstParser {
   conditional = this.RULE('conditional', () => {
     this.SUBRULE(this.logicalOr);
     this.OPTION(() => {
+      this.MANY1(() => this.CONSUME(Newline)); // Allow newlines before ?
       this.CONSUME(Question);
+      this.MANY2(() => this.CONSUME2(Newline)); // Allow newlines after ?
       this.SUBRULE1(this.expression);
+      this.MANY3(() => this.CONSUME3(Newline)); // Allow newlines before :
       this.CONSUME(Colon);
+      this.MANY4(() => this.CONSUME4(Newline)); // Allow newlines after :
       this.SUBRULE2(this.expression);
     });
   });
@@ -420,7 +451,9 @@ export class VtlParser extends CstParser {
   logicalOr = this.RULE('logicalOr', () => {
     this.SUBRULE(this.logicalAnd);
     this.MANY1(() => {
+      this.MANY2(() => this.CONSUME(Newline)); // Allow newlines before operator
       this.CONSUME(Or);
+      this.MANY3(() => this.CONSUME2(Newline)); // Allow newlines after operator
       this.SUBRULE2(this.logicalAnd);
     });
   });
@@ -428,7 +461,9 @@ export class VtlParser extends CstParser {
   logicalAnd = this.RULE('logicalAnd', () => {
     this.SUBRULE(this.equality);
     this.MANY1(() => {
+      this.MANY2(() => this.CONSUME(Newline)); // Allow newlines before operator
       this.CONSUME(And);
+      this.MANY3(() => this.CONSUME2(Newline)); // Allow newlines after operator
       this.SUBRULE2(this.equality);
     });
   });
@@ -436,10 +471,12 @@ export class VtlParser extends CstParser {
   equality = this.RULE('equality', () => {
     this.SUBRULE(this.relational);
     this.MANY1(() => {
+      this.MANY2(() => this.CONSUME(Newline)); // Allow newlines before operator
       this.OR([
         { ALT: () => this.CONSUME(Eq) },
         { ALT: () => this.CONSUME(Ne) },
       ]);
+      this.MANY3(() => this.CONSUME2(Newline)); // Allow newlines after operator
       this.SUBRULE2(this.relational);
     });
   });
@@ -447,12 +484,14 @@ export class VtlParser extends CstParser {
   relational = this.RULE('relational', () => {
     this.SUBRULE(this.additive);
     this.MANY1(() => {
+      this.MANY2(() => this.CONSUME(Newline)); // Allow newlines before operator
       this.OR([
         { ALT: () => this.CONSUME(Lt) },
         { ALT: () => this.CONSUME(Le) },
         { ALT: () => this.CONSUME(Gt) },
         { ALT: () => this.CONSUME(Ge) },
       ]);
+      this.MANY3(() => this.CONSUME2(Newline)); // Allow newlines after operator
       this.SUBRULE2(this.additive);
     });
   });
@@ -460,10 +499,12 @@ export class VtlParser extends CstParser {
   additive = this.RULE('additive', () => {
     this.SUBRULE(this.multiplicative);
     this.MANY1(() => {
+      this.MANY2(() => this.CONSUME(Newline)); // Allow newlines before operator
       this.OR([
         { ALT: () => this.CONSUME(Plus) },
         { ALT: () => this.CONSUME(Minus) },
       ]);
+      this.MANY3(() => this.CONSUME2(Newline)); // Allow newlines after operator
       this.SUBRULE2(this.multiplicative);
     });
   });
@@ -471,11 +512,13 @@ export class VtlParser extends CstParser {
   multiplicative = this.RULE('multiplicative', () => {
     this.SUBRULE(this.unary);
     this.MANY1(() => {
+      this.MANY2(() => this.CONSUME(Newline)); // Allow newlines before operator
       this.OR([
         { ALT: () => this.CONSUME(Star) },
         { ALT: () => this.CONSUME(Slash) },
         { ALT: () => this.CONSUME(Mod) },
       ]);
+      this.MANY3(() => this.CONSUME2(Newline)); // Allow newlines after operator
       this.SUBRULE2(this.unary);
     });
   });

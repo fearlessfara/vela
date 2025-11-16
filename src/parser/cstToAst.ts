@@ -68,10 +68,117 @@ export function cstToAst(cst: CstNode): Template {
     };
   }
   
+  const segments = cst.children.segment?.map(segmentToAst) || [];
+  
+  // Apply space gobbling (STRUCTURED mode)
+  // Rule: After block directives that end on their own line, consume the trailing newline
   return {
     type: 'Template',
-    segments: cst.children.segment?.map(segmentToAst) || [],
+    segments: applySpaceGobbling(segments),
   };
+}
+
+/**
+ * Apply space gobbling rules (STRUCTURED mode)
+ * After block directives, consume trailing newlines
+ * Also removes leading/trailing newlines from directive bodies
+ */
+function applySpaceGobbling(segments: Segment[]): Segment[] {
+  // First, process directive bodies to remove leading newlines
+  const processedSegments = segments.map(segment => {
+    if (segment.type === 'IfDirective') {
+      const processed: IfDirective = {
+        ...segment,
+        thenBody: stripLeadingNewline(segment.thenBody),
+        elseIfBranches: segment.elseIfBranches.map(branch => ({
+          ...branch,
+          body: stripLeadingNewline(branch.body),
+        })),
+      };
+      if (segment.elseBody) {
+        processed.elseBody = stripLeadingNewline(segment.elseBody);
+      }
+      return processed;
+    } else if (segment.type === 'ForEachDirective') {
+      const processed: ForEachDirective = {
+        ...segment,
+        body: stripLeadingNewline(segment.body),
+      };
+      if (segment.elseBody) {
+        processed.elseBody = stripLeadingNewline(segment.elseBody);
+      }
+      return processed;
+    } else if (segment.type === 'MacroDirective') {
+      return {
+        ...segment,
+        body: stripLeadingNewline(segment.body),
+      } as MacroDirective;
+    }
+    return segment;
+  });
+  
+  // Then, process top-level segments to remove trailing newlines after directives
+  const result: Segment[] = [];
+  
+  for (let i = 0; i < processedSegments.length; i++) {
+    const segment = processedSegments[i];
+    if (!segment) continue;
+    
+    const nextSegment = processedSegments[i + 1];
+    
+    // Check if current segment is a block directive
+    const isBlockDirective = 
+      segment.type === 'IfDirective' ||
+      segment.type === 'ForEachDirective' ||
+      segment.type === 'MacroDirective';
+    
+    // Check if current segment is a line directive that gobbles trailing newlines
+    // Per Java Parser.jjt line 1931: Include and Parse directives gobble newlines
+    const isLineDirectiveWithGobbling =
+      segment.type === 'EvaluateDirective' ||
+      segment.type === 'ParseDirective' ||
+      segment.type === 'IncludeDirective';
+    
+    // Check if prev segment ended with newline (or is start of template)
+    const prevSegment = result[result.length - 1];
+    const startsOnNewLine = !prevSegment || 
+      (prevSegment.type === 'Text' && prevSegment.value.endsWith('\n'));
+    
+    result.push(segment);
+    
+    // If block directive starts on new line, gobble trailing newline from next text segment
+    // Also applies to certain line directives (#evaluate, #parse, #include)
+    if ((isBlockDirective || isLineDirectiveWithGobbling) && startsOnNewLine && nextSegment?.type === 'Text') {
+      const text = nextSegment.value;
+      if (text.startsWith('\n')) {
+        // Create new text node with leading newline removed
+        result.push({
+          ...nextSegment,
+          value: text.substring(1),
+        });
+        i++; // Skip the next segment since we already processed it
+      }
+    }
+  }
+  
+  return result;
+}
+
+/**
+ * Remove leading newline from a segment array if the first segment is text starting with newline
+ */
+function stripLeadingNewline(segments: Segment[]): Segment[] {
+  if (segments.length === 0) return segments;
+  
+  const first = segments[0];
+  if (first?.type === 'Text' && first.value.startsWith('\n')) {
+    return [
+      { ...first, value: first.value.substring(1) },
+      ...segments.slice(1),
+    ];
+  }
+  
+  return segments;
 }
 
 function segmentToAst(segment: CstElement): Segment {
@@ -92,7 +199,22 @@ function segmentToAst(segment: CstElement): Segment {
 
 function textToAst(text: CstNode): Text {
   const parts = ((text.children as any).AnyTextFragment || []) as Array<{ image: string }>;
-  const value = parts.map(t => t.image).join('');
+  const value = parts.map(t => {
+    // Handle escaped directives: \#end -> #end, \\#end -> \#end, etc.
+    // Pattern matches the Java behavior from Parser.jjt escapedDirective method
+    const image = t.image;
+    const escapedDirectiveMatch = image.match(/^((?:\\\\)*)\\(#(?:if|elseif|else|end|set|foreach|break|stop|macro|evaluate|parse|include)\b)/);
+    if (escapedDirectiveMatch && escapedDirectiveMatch[1] !== undefined && escapedDirectiveMatch[2] !== undefined) {
+      // Count the number of double-escapes (\\) before the \#
+      const doubleEscapes = escapedDirectiveMatch[1];
+      const directive = escapedDirectiveMatch[2];
+      // For each \\ pair, output one \
+      // Then output the directive without the escape backslash
+      const escapedBackslashes = doubleEscapes.replace(/\\\\/g, '\\');
+      return escapedBackslashes + directive;
+    }
+    return image;
+  }).join('');
   return {
     type: 'Text',
     value,
@@ -397,9 +519,20 @@ function literalToAst(literal: CstNode): Literal {
   let value: string | number | boolean | null;
   
   if (literal.children.StringLiteral) {
-    // Remove quotes and unescape
+    // Check if double-quoted or single-quoted
     const str = (token as any).image;
-    value = str.slice(1, -1).replace(/\\(.)/g, '$1');
+    const isDoubleQuoted = str.startsWith('"');
+    const rawValue = str.slice(1, -1); // Remove quotes
+    // Unescape: \n \t etc. and escaped quotes
+    value = rawValue.replace(/\\(.)/g, '$1');
+    
+    return {
+      type: 'Literal',
+      value,
+      isDoubleQuoted,
+      rawValue, // Keep raw value for interpolation
+      location: getLocation(literal),
+    };
   } else if (literal.children.NumberLiteral) {
     value = parseFloat((token as any).image);
   } else if (literal.children.BooleanLiteral) {

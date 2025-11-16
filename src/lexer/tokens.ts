@@ -94,10 +94,13 @@ export const QuietRef = createToken({
 });
 
 // Keywords
+// Note: "in" keyword for #foreach is handled specially to avoid matching in regular text
+// We match it as Identifier "in" between two whitespace/newline tokens in the foreach context
 export const InKeyword = createToken({
   name: 'InKeyword',
   pattern: /\s+in\s+/,
   line_breaks: false,
+  // Don't make this a category of AnyTextFragment to avoid breaking text like "text in middle"
 });
 
 
@@ -124,13 +127,13 @@ export const RCurly = createToken({
 export const LParen = createToken({
   name: 'LParen',
   pattern: /\(/,
-
+  categories: [AnyTextFragment], // Can be part of text in template context
 });
 
 export const RParen = createToken({
   name: 'RParen',
   pattern: /\)/,
-
+  categories: [AnyTextFragment], // Can be part of text in template context
 });
 
 export const LBracket = createToken({
@@ -179,7 +182,7 @@ export const Assign = createToken({
 export const Plus = createToken({
   name: 'Plus',
   pattern: /\+/,
-
+  categories: [AnyTextFragment], // Can be part of text in template context
 });
 
 export const Minus = createToken({
@@ -269,6 +272,16 @@ export const Ge = createToken({
 export const Range = createToken({
   name: 'Range',
   pattern: /\.\./,
+});
+
+// Escaped directives (must come before individual directive tokens)
+// Matches patterns like \#end, \#if, \#set, etc.
+// Pattern: optional double-escapes + backslash + # + directive name
+export const EscapedDirective = createToken({
+  name: 'EscapedDirective',
+  pattern: /(?:\\\\)*\\#(?:if|elseif|else|end|set|foreach|break|stop|macro|evaluate|parse|include)\b/,
+  line_breaks: false,
+  categories: [AnyTextFragment], // Treat as text in template output
 });
 
 // Directives
@@ -398,13 +411,22 @@ export const TemplateText = createToken({
         }
       }
 
-      // scan forward until next '#', '$', '=', or structural characters
+      // scan forward until next '#', '$', '=', '\', or structural characters
       // Include spaces, tabs, and newlines in the text (they're part of the template output)
       // Note: Parentheses, brackets, and braces can be part of text, so we only stop
       // at them if they're immediately followed by something that looks like an expression
       let i = startOffset;
       while (i < len) {
         const ch = text.charCodeAt(i);
+        // Stop at backslash if it precedes # (escaped directive pattern)
+        if (ch === 92 /*\*/ && i + 1 < len) {
+          const nextCh = text.charCodeAt(i + 1);
+          if (nextCh === 35 /*#*/ || nextCh === 92 /*\*/) {
+            // This might be start of escaped directive like \#end or \\#end
+            // Let EscapedDirective token match instead
+            break;
+          }
+        }
         // Always stop at: # $ =
         if (ch === 35 || ch === 36 || ch === 61) break;
         
@@ -464,13 +486,12 @@ export const Whitespace = createToken({
   categories: [AnyTextFragment], // But can be part of text
 });
 
-// Newlines: SKIPPED globally so they're automatically ignored in expressions
-// But TemplateText includes newlines in its pattern, so they're preserved in text output
+// Newlines: treat as text fragments so they're included in template output
 export const Newline = createToken({
   name: 'Newline',
   pattern: /\r?\n/,
   line_breaks: true,
-  group: Lexer.SKIPPED, // Skip in all contexts - TemplateText will capture them
+  categories: [AnyTextFragment], // Treat as text in template contexts
 });
 
 // Token list in proper order (longer before shorter, keywords before Identifier)
@@ -479,12 +500,11 @@ export const allTokens: TokenType[] = [
   LineComment,
   BlockComment,
 
-  // Keywords must come very early to avoid conflicts with identifiers
-  InKeyword,
-
-
   // Interpolation must win before other '$' tokens
   InterpStart,
+
+  // Escaped directives must come before individual directive tokens
+  EscapedDirective,
 
   // Individual directive tokens
   IfDirective,
@@ -554,6 +574,10 @@ export const allTokens: TokenType[] = [
 
   // Identifiers (after keywords)
   Identifier,
+
+  // InKeyword comes after TemplateText to avoid matching " in " in regular text
+  // It will still match in directive/expression contexts where TemplateText doesn't apply
+  InKeyword,
 
   // Newline and categories
   Newline,

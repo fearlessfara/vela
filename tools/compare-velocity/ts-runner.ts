@@ -2,7 +2,7 @@
 
 import { readFile } from 'fs/promises';
 // Use dynamic import to avoid TypeScript path issues
-// import { VelocityEngine } from '../../../dist/engine.js';
+// import { VelocityEngine } from '../../src/engine.js';
 
 export interface TSRunnerOptions {
   templatePath: string;
@@ -20,7 +20,8 @@ export async function runTSVelocity(options: TSRunnerOptions): Promise<string> {
   const context = JSON.parse(inputJson);
   
   // Dynamic import to avoid path resolution issues
-  const { VelocityEngine } = await import('../../../dist/engine.js');
+  const enginePath = new URL('../../../dist/engine.js', import.meta.url);
+  const { VelocityEngine } = await import(enginePath.href);
   
   // Create engine and render
   const engine = new VelocityEngine(false);

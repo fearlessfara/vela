@@ -101,7 +101,8 @@ export class VtlParser extends CstParser {
                     return !(t === DollarRef || t === QuietRef || t === InterpStart ||
                         t === IfDirective || t === ElseIfDirective || t === ElseDirective ||
                         t === SetDirective || t === ForEachDirective || t === BreakDirective ||
-                        t === StopDirective || t === MacroDirective || t === EndDirective);
+                        t === StopDirective || t === MacroDirective || t === EndDirective ||
+                        t === EvaluateDirective || t === ParseDirective || t === IncludeDirective);
                 },
                 ALT: () => this.SUBRULE(this.text),
             },
@@ -337,21 +338,21 @@ export class VtlParser extends CstParser {
     });
     logicalOr = this.RULE('logicalOr', () => {
         this.SUBRULE(this.logicalAnd);
-        this.MANY(() => {
+        this.MANY1(() => {
             this.CONSUME(Or);
             this.SUBRULE2(this.logicalAnd);
         });
     });
     logicalAnd = this.RULE('logicalAnd', () => {
         this.SUBRULE(this.equality);
-        this.MANY(() => {
+        this.MANY1(() => {
             this.CONSUME(And);
             this.SUBRULE2(this.equality);
         });
     });
     equality = this.RULE('equality', () => {
         this.SUBRULE(this.relational);
-        this.MANY(() => {
+        this.MANY1(() => {
             this.OR([
                 { ALT: () => this.CONSUME(Eq) },
                 { ALT: () => this.CONSUME(Ne) },
@@ -361,7 +362,7 @@ export class VtlParser extends CstParser {
     });
     relational = this.RULE('relational', () => {
         this.SUBRULE(this.additive);
-        this.MANY(() => {
+        this.MANY1(() => {
             this.OR([
                 { ALT: () => this.CONSUME(Lt) },
                 { ALT: () => this.CONSUME(Le) },
@@ -373,7 +374,7 @@ export class VtlParser extends CstParser {
     });
     additive = this.RULE('additive', () => {
         this.SUBRULE(this.multiplicative);
-        this.MANY(() => {
+        this.MANY1(() => {
             this.OR([
                 { ALT: () => this.CONSUME(Plus) },
                 { ALT: () => this.CONSUME(Minus) },
@@ -383,7 +384,7 @@ export class VtlParser extends CstParser {
     });
     multiplicative = this.RULE('multiplicative', () => {
         this.SUBRULE(this.unary);
-        this.MANY(() => {
+        this.MANY1(() => {
             this.OR([
                 { ALT: () => this.CONSUME(Star) },
                 { ALT: () => this.CONSUME(Slash) },
@@ -434,7 +435,7 @@ export class VtlParser extends CstParser {
                     this.CONSUME(LParen);
                     this.OPTION(() => {
                         this.SUBRULE(this.expression, { LABEL: 'args' });
-                        this.MANY(() => {
+                        this.MANY1(() => {
                             this.CONSUME(Comma);
                             this.SUBRULE2(this.expression, { LABEL: 'args' });
                         });

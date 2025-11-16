@@ -55,7 +55,22 @@ function segmentToAst(segment) {
 }
 function textToAst(text) {
     const parts = (text.children.AnyTextFragment || []);
-    const value = parts.map(t => t.image).join('');
+    const value = parts.map(t => {
+        // Handle escaped directives: \#end -> #end, \\#end -> \#end, etc.
+        // Pattern matches the Java behavior from Parser.jjt escapedDirective method
+        const image = t.image;
+        const escapedDirectiveMatch = image.match(/^((?:\\\\)*)\\(#(?:if|elseif|else|end|set|foreach|break|stop|macro|evaluate|parse|include)\b)/);
+        if (escapedDirectiveMatch && escapedDirectiveMatch[1] !== undefined && escapedDirectiveMatch[2] !== undefined) {
+            // Count the number of double-escapes (\\) before the \#
+            const doubleEscapes = escapedDirectiveMatch[1];
+            const directive = escapedDirectiveMatch[2];
+            // For each \\ pair, output one \
+            // Then output the directive without the escape backslash
+            const escapedBackslashes = doubleEscapes.replace(/\\\\/g, '\\');
+            return escapedBackslashes + directive;
+        }
+        return image;
+    }).join('');
     return {
         type: 'Text',
         value,
