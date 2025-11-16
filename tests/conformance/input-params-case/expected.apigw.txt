@@ -1,6 +1,0 @@
-{
-  "pathParam": "123",
-  "queryParam": "test",
-  "headerParam": "Bearer token123",
-  "allParams": {"id":"123","name":"test","authorization":"Bearer token123","content-type":"application/json"}
-}

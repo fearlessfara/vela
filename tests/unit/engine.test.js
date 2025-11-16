@@ -1,237 +1,80 @@
-import { VtlEngine, renderTemplate } from '../../dist/apigw/engine.js';
+import { VelocityEngine, renderTemplate } from '../../dist/engine.js';
 
-const ALL_PROVIDERS_ON = {
-  APIGW_CONTEXT: 'ON',
-  APIGW_INPUT: 'ON',
-  APIGW_UTILS: 'ON',
-};
+describe('VelocityEngine', () => {
+  it('evaluates velocity templates with simple context', () => {
+    const engine = new VelocityEngine();
+    const template = 'Hello, $name!';
+    const context = { name: 'World' };
 
-describe('VtlEngine', () => {
-  it('evaluates velocity templates with context, input, and util providers when enabled', () => {
-    const engine = new VtlEngine();
-    const template = 'Request: $context.requestId Query: $input.param("id") Encoded: $util.base64Encode("hi")';
-    const event = {
-      requestContext: { requestId: 'req-123' },
-      queryStringParameters: { id: '42' },
-    };
+    const output = engine.render(template, context);
 
-    const result = engine.renderTemplate({
-      template,
-      event,
-      flags: ALL_PROVIDERS_ON,
-    });
-
-    expect(result.errors).toEqual([]);
-    expect(result.output).toBe('Request:req-123 Query:42 Encoded:aGk=');
+    expect(output).toBe('Hello, World!');
   });
 
-  it('renders JSON templates with provider lookups and formats values into valid JSON', () => {
-    const engine = new VtlEngine();
-    const template = `{
-      "requestId":"$context.requestId",
-      "sourceIp":"$context.identity.sourceIp",
-      "query":"$input.param('search')",
-      "params": $input.params(),
-      "jsonValue": $input.json('$.nested'),
-      "missingPath": $input.json('$.missing'),
-      "encoded": $util.base64Encode('ok')
-    }`;
-    const event = {
-      body: JSON.stringify({ nested: { value: 5 } }),
-      headers: { 'X-Test': 'value', Accept: 'text/plain' },
-      pathParameters: { id: '123' },
-      queryStringParameters: { search: 'test' },
-      requestContext: { requestId: 'req-456', identity: { sourceIp: '1.1.1.1' } },
-    };
+  it('renders templates with #set directive', () => {
+    const engine = new VelocityEngine();
+    const template = '#set($greeting = "Hello")$greeting, $name!';
+    const context = { name: 'World' };
 
-    const result = engine.renderTemplate({
-      template,
-      event,
-      flags: ALL_PROVIDERS_ON,
-    });
+    const output = engine.render(template, context);
 
-    expect(result.errors).toEqual([]);
-
-    const parsed = JSON.parse(result.output);
-    expect(parsed).toEqual({
-      requestId: 'req-456',
-      sourceIp: '1.1.1.1',
-      query: 'test',
-      params: {
-        id: '123',
-        search: 'test',
-        'x-test': 'value',
-        accept: 'text/plain',
-      },
-      jsonValue: { value: 5 },
-      missingPath: null,
-      encoded: 'b2s=',
-    });
+    expect(output).toBe('Hello, World!');
   });
 
-  it('supplies default context fallbacks when no context is provided', () => {
-    const template = `{
-      "domain":"$context.domainName",
-      "domainPrefix":"$context.domainPrefix",
-      "deploymentId":"$context.deploymentId",
-      "requestOverride": $util.toJson($context.requestOverride),
-      "responseOverride": $util.toJson($context.responseOverride),
-      "wafResponseCode": $context.wafResponseCode,
-      "webaclArn":"$context.webaclArn",
-      "identityVpcId":"$context.identity.vpcId",
-      "identityVpceId":"$context.identity.vpceId",
-      "requestTime":"$context.requestTime",
-      "requestTimeEpoch": $context.requestTimeEpoch
-    }`;
+  it('renders templates with #if directive', () => {
+    const engine = new VelocityEngine();
+    const template = '#if($show)Visible#elseHidden#end';
+    const context = { show: true };
 
-    const { output, errors } = renderTemplate({
-      template,
-      event: {},
-      flags: { APIGW_CONTEXT: 'ON', APIGW_UTILS: 'ON' },
-    });
+    const output = engine.render(template, context);
 
-    expect(errors).toEqual([]);
-    expect(JSON.parse(output)).toEqual({
-      domain: 'localhost',
-      domainPrefix: 'localhost',
-      deploymentId: '',
-      requestOverride: {
-        header: {},
-        querystring: {},
-        path: {},
-      },
-      responseOverride: {
-        statusCode: 0,
-        header: {},
-      },
-      wafResponseCode: 0,
-      webaclArn: '',
-      identityVpcId: '',
-      identityVpceId: '',
-      requestTime: '01/Jan/1970:00:00:00 +0000',
-      requestTimeEpoch: 0,
-    });
+    expect(output).toBe('Visible');
   });
 
-  it('populates context fields from the incoming request when provided', () => {
-    const template = `{
-      "domain":"$context.domainName",
-      "domainPrefix":"$context.domainPrefix",
-      "deploymentId":"$context.deploymentId",
-      "requestOverride": $util.toJson($context.requestOverride),
-      "responseOverride": $util.toJson($context.responseOverride),
-      "wafResponseCode": $context.wafResponseCode,
-      "webaclArn":"$context.webaclArn",
-      "identityVpcId":"$context.identity.vpcId",
-      "identityVpceId":"$context.identity.vpceId",
-      "requestTime":"$context.requestTime",
-      "requestTimeEpoch": $context.requestTimeEpoch
-    }`;
+  it('renders templates with #foreach directive', () => {
+    const engine = new VelocityEngine();
+    const template = '#foreach($item in $items)$item #end';
+    const context = { items: ['apple', 'banana', 'cherry'] };
 
-    const event = {
-      requestContext: {
-        requestId: 'req-ctx',
-        httpMethod: 'POST',
-        path: '/resource',
-        protocol: 'HTTP/2',
-        stage: 'prod',
-        domainName: 'api.example.com',
-        domainPrefix: 'api',
-        deploymentId: 'dep-123',
-        requestOverride: {
-          header: { 'X-Test': 'yes' },
-          querystring: { page: '1' },
-          path: { id: '42' },
-        },
-        responseOverride: {
-          statusCode: 202,
-          header: { 'Content-Type': 'application/json' },
-        },
-        wafResponseCode: 403,
-        webaclArn: 'arn:aws:wafv2:us-east-1:123:webacl/example',
-        identity: {
-          vpcId: 'vpc-123',
-          vpceId: 'vpce-456',
-          sourceIp: '1.1.1.1',
-        },
-        requestTime: '02/Feb/2024:10:20:30 +0000',
-        requestTimeEpoch: 1706878830000,
-      },
-    };
+    const output = engine.render(template, context);
 
-    const { output, errors } = renderTemplate({
-      template,
-      event,
-      flags: { APIGW_CONTEXT: 'ON', APIGW_UTILS: 'ON' },
-    });
-
-    expect(errors).toEqual([]);
-    expect(JSON.parse(output)).toEqual({
-      domain: 'api.example.com',
-      domainPrefix: 'api',
-      deploymentId: 'dep-123',
-      requestOverride: {
-        header: { 'X-Test': 'yes' },
-        querystring: { page: '1' },
-        path: { id: '42' },
-      },
-      responseOverride: {
-        statusCode: 202,
-        header: { 'Content-Type': 'application/json' },
-      },
-      wafResponseCode: 403,
-      webaclArn: 'arn:aws:wafv2:us-east-1:123:webacl/example',
-      identityVpcId: 'vpc-123',
-      identityVpceId: 'vpce-456',
-      requestTime: '02/Feb/2024:10:20:30 +0000',
-      requestTimeEpoch: 1706878830000,
-    });
+    expect(output.trim()).toBe('apple banana cherry');
   });
 
-  it('prefers explicitly provided context over derived defaults', () => {
-    const engine = new VtlEngine();
-    const template = 'Provided: $context.requestId';
-    const explicitContext = {
-      requestId: 'ctx-999',
-      httpMethod: 'POST',
-      path: '/items',
-      protocol: 'HTTP/2',
-      stage: 'test',
-      domainName: 'ctx.example.com',
-    };
+  it('handles member access', () => {
+    const engine = new VelocityEngine();
+    const template = 'Name: $user.name, Age: $user.age';
+    const context = { user: { name: 'Alice', age: 30 } };
 
-    const result = engine.renderTemplate({
-      template,
-      event: { requestContext: { requestId: 'event-123' } },
-      context: explicitContext,
-      flags: { APIGW_CONTEXT: 'ON' },
-    });
+    const output = engine.render(template, context);
 
-    expect(result.errors).toEqual([]);
-    expect(result.output).toBe('Provided:ctx-999');
+    expect(output).toBe('Name: Alice, Age: 30');
+  });
+
+  it('handles quiet references for undefined variables', () => {
+    const engine = new VelocityEngine();
+    const template = 'Value: $!missing';
+    const context = {};
+
+    const output = engine.render(template, context);
+
+    expect(output).toBe('Value: ');
   });
 
   it('returns parser errors for invalid templates', () => {
-    const engine = new VtlEngine();
-    const result = engine.renderTemplate({
-      template: '#set($value = )',
-      event: {},
-      flags: { APIGW_CONTEXT: 'ON' },
-    });
-
-    expect(result.output).toBe('');
-    expect(result.errors.length).toBeGreaterThan(0);
+    const engine = new VelocityEngine();
+    
+    expect(() => {
+      engine.render('#set($value = )', {});
+    }).toThrow();
   });
 
-  it('captures runtime errors raised during evaluation', () => {
-    const engine = new VtlEngine();
-    const result = engine.renderTemplate({
-      template: '$util.error("boom")',
-      event: {},
-      flags: { APIGW_UTILS: 'ON' },
-    });
+  it('works with renderTemplate convenience function', () => {
+    const template = 'Hello, $name!';
+    const context = { name: 'World' };
 
-    expect(result.output).toBe('');
-    expect(result.errors).toEqual(['VTL Error: boom (Status: 500)']);
+    const output = renderTemplate(template, context);
+
+    expect(output).toBe('Hello, World!');
   });
 });

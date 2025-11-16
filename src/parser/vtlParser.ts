@@ -1,4 +1,4 @@
-/** AWS-SPEC: VTL Parser | OWNER: vela | STATUS: READY */
+/** Apache Velocity: VTL Parser | OWNER: vela | STATUS: READY */
 
 import { CstParser, Lexer } from 'chevrotain';
 import {
@@ -46,11 +46,12 @@ import {
   BreakDirective,
   StopDirective,
   MacroDirective,
+  EvaluateDirective,
+  ParseDirective,
+  IncludeDirective,
   EndDirective,
   AnyTextFragment,
 } from '../lexer/tokens.js';
-
-// APIGW:VTL Parser
 
 export class VtlParser extends CstParser {
   private debugMode: boolean = false;
@@ -225,6 +226,9 @@ export class VtlParser extends CstParser {
       { ALT: () => this.SUBRULE(this.breakDirective) },
       { ALT: () => this.SUBRULE(this.stopDirective) },
       { ALT: () => this.SUBRULE(this.macroDirective) },
+      { ALT: () => this.SUBRULE(this.evaluateDirective) },
+      { ALT: () => this.SUBRULE(this.parseDirective) },
+      { ALT: () => this.SUBRULE(this.includeDirective) },
     ]);
   });
 
@@ -373,6 +377,30 @@ export class VtlParser extends CstParser {
     this.CONSUME(EndDirective, { LABEL: 'endKeyword' });
   });
 
+  // #evaluate directive
+  evaluateDirective = this.RULE('evaluateDirective', () => {
+    this.CONSUME(EvaluateDirective, { LABEL: 'evaluateKeyword' });
+    this.CONSUME(LParen);
+    this.SUBRULE(this.expression, { LABEL: 'expression' });
+    this.CONSUME(RParen);
+  });
+
+  // #parse directive
+  parseDirective = this.RULE('parseDirective', () => {
+    this.CONSUME(ParseDirective, { LABEL: 'parseKeyword' });
+    this.CONSUME(LParen);
+    this.SUBRULE(this.expression, { LABEL: 'expression' });
+    this.CONSUME(RParen);
+  });
+
+  // #include directive
+  includeDirective = this.RULE('includeDirective', () => {
+    this.CONSUME(IncludeDirective, { LABEL: 'includeKeyword' });
+    this.CONSUME(LParen);
+    this.SUBRULE(this.expression, { LABEL: 'expression' });
+    this.CONSUME(RParen);
+  });
+
   // Expression parsing with proper precedence
   expression = this.RULE('expression', () => {
     this.SUBRULE(this.conditional);
@@ -391,7 +419,7 @@ export class VtlParser extends CstParser {
 
   logicalOr = this.RULE('logicalOr', () => {
     this.SUBRULE(this.logicalAnd);
-    this.MANY(() => {
+    this.MANY1(() => {
       this.CONSUME(Or);
       this.SUBRULE2(this.logicalAnd);
     });
@@ -399,7 +427,7 @@ export class VtlParser extends CstParser {
 
   logicalAnd = this.RULE('logicalAnd', () => {
     this.SUBRULE(this.equality);
-    this.MANY(() => {
+    this.MANY1(() => {
       this.CONSUME(And);
       this.SUBRULE2(this.equality);
     });
@@ -407,7 +435,7 @@ export class VtlParser extends CstParser {
 
   equality = this.RULE('equality', () => {
     this.SUBRULE(this.relational);
-    this.MANY(() => {
+    this.MANY1(() => {
       this.OR([
         { ALT: () => this.CONSUME(Eq) },
         { ALT: () => this.CONSUME(Ne) },
@@ -418,7 +446,7 @@ export class VtlParser extends CstParser {
 
   relational = this.RULE('relational', () => {
     this.SUBRULE(this.additive);
-    this.MANY(() => {
+    this.MANY1(() => {
       this.OR([
         { ALT: () => this.CONSUME(Lt) },
         { ALT: () => this.CONSUME(Le) },
@@ -431,7 +459,7 @@ export class VtlParser extends CstParser {
 
   additive = this.RULE('additive', () => {
     this.SUBRULE(this.multiplicative);
-    this.MANY(() => {
+    this.MANY1(() => {
       this.OR([
         { ALT: () => this.CONSUME(Plus) },
         { ALT: () => this.CONSUME(Minus) },
@@ -442,7 +470,7 @@ export class VtlParser extends CstParser {
 
   multiplicative = this.RULE('multiplicative', () => {
     this.SUBRULE(this.unary);
-    this.MANY(() => {
+    this.MANY1(() => {
       this.OR([
         { ALT: () => this.CONSUME(Star) },
         { ALT: () => this.CONSUME(Slash) },
@@ -497,8 +525,8 @@ export class VtlParser extends CstParser {
           this.CONSUME(LParen);
           this.OPTION(() => { 
             this.SUBRULE(this.expression, { LABEL: 'args' });
-            this.MANY(() => { 
-              this.CONSUME(Comma); 
+            this.MANY1(() => { 
+              this.CONSUME(Comma);
               this.SUBRULE2(this.expression, { LABEL: 'args' }); 
             });
           });
@@ -506,8 +534,8 @@ export class VtlParser extends CstParser {
         }
       },
       { ALT: () => { 
-          this.CONSUME(LBracket); 
-          this.SUBRULE3(this.expression, { LABEL: 'index' }); 
+          this.CONSUME(LBracket);
+          this.SUBRULE3(this.expression, { LABEL: 'index' });
           this.CONSUME(RBracket); 
         } 
       },
@@ -579,4 +607,3 @@ export class VtlParser extends CstParser {
 
 }
 
-/* Deviation Report: None - Parser rules match AWS API Gateway VTL specification */

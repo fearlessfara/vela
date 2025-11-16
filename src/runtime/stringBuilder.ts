@@ -1,6 +1,4 @@
-/** AWS-SPEC: String Builder | OWNER: vela | STATUS: READY */
-
-// APIGW:String Builder
+/** Apache Velocity: String Builder | OWNER: vela | STATUS: READY */
 
 export class StringBuilder {
   private buffer: string[];
@@ -56,4 +54,3 @@ export class StringBuilder {
   }
 }
 
-/* Deviation Report: None - String builder matches AWS API Gateway VTL specification */

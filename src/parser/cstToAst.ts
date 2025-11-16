@@ -1,4 +1,4 @@
-/** AWS-SPEC: CST to AST Mapper | OWNER: vela | STATUS: READY */
+/** Apache Velocity: CST to AST Mapper | OWNER: vela | STATUS: READY */
 
 import { CstNode, CstElement } from 'chevrotain';
 import {
@@ -13,6 +13,9 @@ import {
   BreakDirective,
   StopDirective,
   MacroDirective,
+  EvaluateDirective,
+  ParseDirective,
+  IncludeDirective,
   Expression,
   Literal,
   VariableReference,
@@ -27,8 +30,6 @@ import {
   Position,
   SourceLocation,
 } from './ast.js';
-
-// APIGW:CST to AST Mapper
 
 export function cstToAst(cst: CstNode): Template {
   // Handle case where template is a single expression
@@ -173,6 +174,15 @@ function directiveToAst(directive: CstNode): Segment {
   if (directive.children.macroDirective) {
     return macroDirectiveToAst(directive.children.macroDirective[0] as CstNode);
   }
+  if (directive.children.evaluateDirective) {
+    return evaluateDirectiveToAst(directive.children.evaluateDirective[0] as CstNode);
+  }
+  if (directive.children.parseDirective) {
+    return parseDirectiveToAst(directive.children.parseDirective[0] as CstNode);
+  }
+  if (directive.children.includeDirective) {
+    return includeDirectiveToAst(directive.children.includeDirective[0] as CstNode);
+  }
   throw new Error('Invalid directive type');
 }
 
@@ -273,6 +283,30 @@ function macroDirectiveToAst(macroDirective: CstNode): MacroDirective {
     parameters: macroDirective.children.parameters?.map((p: any) => p.image) || [],
     body: macroDirective.children.body?.map(segmentToAst) || [],
     location: getLocation(macroDirective),
+  };
+}
+
+function evaluateDirectiveToAst(evaluateDirective: CstNode): EvaluateDirective {
+  return {
+    type: 'EvaluateDirective',
+    expression: expressionToAst(evaluateDirective.children.expression![0] as CstNode),
+    location: getLocation(evaluateDirective),
+  };
+}
+
+function parseDirectiveToAst(parseDirective: CstNode): ParseDirective {
+  return {
+    type: 'ParseDirective',
+    expression: expressionToAst(parseDirective.children.expression![0] as CstNode),
+    location: getLocation(parseDirective),
+  };
+}
+
+function includeDirectiveToAst(includeDirective: CstNode): IncludeDirective {
+  return {
+    type: 'IncludeDirective',
+    expression: expressionToAst(includeDirective.children.expression![0] as CstNode),
+    location: getLocation(includeDirective),
   };
 }
 
@@ -708,4 +742,3 @@ function getPosition(offset: number): Position {
   };
 }
 
-/* Deviation Report: None - CST to AST mapper matches AWS API Gateway VTL specification */

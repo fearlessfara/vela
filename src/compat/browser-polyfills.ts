@@ -1,6 +1,6 @@
 /**
  * Browser polyfills for Node.js-specific APIs
- * AWS-SPEC: N/A | OWNER: fearlessfara | STATUS: READY
+ * Apache Velocity: N/A | OWNER: fearlessfara | STATUS: READY
  */
 
 // Polyfill for process.env

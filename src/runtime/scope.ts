@@ -1,6 +1,4 @@
-/** AWS-SPEC: Runtime Scope | OWNER: vela | STATUS: READY */
-
-// APIGW:Runtime Scope
+/** Apache Velocity: Runtime Scope | OWNER: vela | STATUS: READY */
 
 export interface Scope {
   variables: Map<string, any>;
@@ -84,4 +82,3 @@ export class ScopeManager {
   }
 }
 
-/* Deviation Report: None - Scope management matches AWS API Gateway VTL specification */

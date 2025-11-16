@@ -1,8 +1,9 @@
-/** AWS-SPEC: Runtime Evaluator | OWNER: vela | STATUS: READY */
+/** Apache Velocity: Runtime Evaluator | OWNER: vela | STATUS: READY */
 
 import { ScopeManager } from './scope.js';
 import { StringBuilder } from './stringBuilder.js';
-import { FeatureFlags, isFlagEnabled } from '../config/featureFlags.js';
+import { VtlParser } from '../parser/vtlParser.js';
+import { cstToAst } from '../parser/cstToAst.js';
 import {
   Template,
   Segment,
@@ -11,6 +12,9 @@ import {
   IfDirective,
   SetDirective,
   ForEachDirective,
+  EvaluateDirective,
+  ParseDirective,
+  IncludeDirective,
   Expression,
   Literal,
   VariableReference,
@@ -25,14 +29,7 @@ import {
   TernaryOperation,
 } from '../parser/ast.js';
 
-// APIGW:Runtime Evaluator
-
-export interface EvaluationContext {
-  util?: any;
-  input?: any;
-  context?: any;
-  flags: FeatureFlags;
-}
+export type EvaluationContext = Map<string, any> | Record<string, any>;
 
 export class VtlEvaluator {
   private scopeManager: ScopeManager;
@@ -40,7 +37,6 @@ export class VtlEvaluator {
   private context: EvaluationContext;
   private shouldStop: boolean;
   private shouldBreak: boolean;
-  private jsonOutputMode: boolean;
 
   constructor(context: EvaluationContext) {
     this.scopeManager = new ScopeManager();
@@ -48,7 +44,6 @@ export class VtlEvaluator {
     this.context = context;
     this.shouldStop = false;
     this.shouldBreak = false;
-    this.jsonOutputMode = false;
   }
 
   evaluateTemplate(template: Template): string {
@@ -58,7 +53,6 @@ export class VtlEvaluator {
 
     this.scopeManager.clear();
     this.initializeGlobalScope();
-    this.jsonOutputMode = this.detectJsonTemplate(template);
 
     for (const segment of template.segments) {
       if (this.shouldStop) {
@@ -99,6 +93,15 @@ export class VtlEvaluator {
         break;
       case 'MacroDirective':
         this.evaluateMacroDirective(segment);
+        break;
+      case 'EvaluateDirective':
+        this.evaluateEvaluateDirective(segment);
+        break;
+      case 'ParseDirective':
+        this.evaluateParseDirective(segment);
+        break;
+      case 'IncludeDirective':
+        this.evaluateIncludeDirective(segment);
         break;
     }
   }
@@ -228,6 +231,58 @@ export class VtlEvaluator {
     );
   }
 
+  private evaluateEvaluateDirective(evaluateDirective: EvaluateDirective): void {
+    // #evaluate evaluates a string expression as a template
+    const expressionValue = this.evaluateExpression(evaluateDirective.expression);
+    const templateString = String(expressionValue);
+    
+    if (!templateString) {
+      return;
+    }
+    
+    // Parse and evaluate the template string
+    try {
+      const parser = new VtlParser();
+      const parseResult = parser.parse(templateString);
+      
+      if (parseResult.errors && parseResult.errors.length > 0) {
+        // Silently fail for now
+        return;
+      }
+      
+      if (parseResult.cst) {
+        const ast = cstToAst(parseResult.cst);
+        // Evaluate in current scope context - create sub-evaluator that shares scope
+        const subEvaluator = new VtlEvaluator(this.context);
+        // Share the scope manager and string builder so variables are accessible
+        // and output goes to the same place
+        (subEvaluator as any).scopeManager = this.scopeManager;
+        (subEvaluator as any).stringBuilder = this.stringBuilder;
+        // Don't call evaluateTemplate as it clears the string builder
+        // Instead, evaluate segments directly
+        for (const segment of ast.segments) {
+          if ((subEvaluator as any).shouldStop) {
+            break;
+          }
+          (subEvaluator as any).evaluateSegment(segment);
+        }
+      }
+    } catch (error) {
+      // Silently fail on evaluation errors
+    }
+  }
+
+  private evaluateParseDirective(_parseDirective: ParseDirective): void {
+    // #parse includes and evaluates another template file
+    // For now, not implemented (requires file system access)
+    // This would need a resource loader
+  }
+
+  private evaluateIncludeDirective(_includeDirective: IncludeDirective): void {
+    // #include includes file content without evaluation
+    // For now, not implemented (requires file system access)
+  }
+
   private evaluateExpression(expr: Expression): any {
     switch (expr.type) {
       case 'Literal':
@@ -265,15 +320,16 @@ export class VtlEvaluator {
     const value = this.scopeManager.getVariable(ref.name);
 
     if (value === undefined) {
-      const provider = this.getBuiltInProvider(ref.name);
-      if (provider !== undefined) {
-        return provider;
+      // Check context for variable
+      const contextValue = this.getContextVariable(ref.name);
+      if (contextValue !== undefined) {
+        return contextValue;
       }
 
       if (ref.quiet) {
         return '';
       }
-      // In APIGW, undefined variables return empty string
+      // In Velocity, undefined variables return empty string
       return '';
     }
     
@@ -304,11 +360,6 @@ export class VtlEvaluator {
     
     if (typeof callee === 'function') {
       return callee(...args);
-    }
-    
-    // Handle built-in functions
-    if (typeof callee === 'string') {
-      return this.callBuiltInFunction(callee, args);
     }
     
     return '';
@@ -348,7 +399,6 @@ export class VtlEvaluator {
     }
     return result;
   }
-
 
   private evaluateBinaryOperation(op: BinaryOperation): any {
     const left = this.evaluateExpression(op.left);
@@ -408,154 +458,42 @@ export class VtlEvaluator {
       : this.evaluateExpression(ternary.elseExpression);
   }
 
-  private callBuiltInFunction(name: string, args: any[]): any {
-    // Handle $util, $input, $context functions based on feature flags
-    if (name.startsWith('util.') && isFlagEnabled(this.context.flags, 'APIGW_UTILS')) {
-      return this.callUtilFunction(name.slice(5), args);
-    }
-    
-    if (name.startsWith('input.') && isFlagEnabled(this.context.flags, 'APIGW_INPUT')) {
-      return this.callInputFunction(name.slice(6), args);
-    }
-    
-    if (name.startsWith('context.') && isFlagEnabled(this.context.flags, 'APIGW_CONTEXT')) {
-      return this.callContextFunction(name.slice(8), args);
-    }
-    
-    return '';
-  }
-
-  private callUtilFunction(method: string, args: any[]): any {
-    if (this.context.util && typeof this.context.util[method] === 'function') {
-      return this.context.util[method](...args);
-    }
-    return '';
-  }
-
-  private callInputFunction(method: string, args: any[]): any {
-    if (this.context.input && typeof this.context.input[method] === 'function') {
-      return this.context.input[method](...args);
-    }
-    return '';
-  }
-
-  private callContextFunction(method: string, args: any[]): any {
-    if (this.context.context && typeof this.context.context[method] === 'function') {
-      return this.context.context[method](...args);
-    }
-    return '';
-  }
-
   private appendInterpolatedValue(value: any): void {
-    const normalized = this.normalizeInterpolatedValue(value);
-    if (normalized === null || normalized === undefined) {
-      return;
-    }
-
-    if (typeof normalized === 'string') {
-      this.stringBuilder.appendString(normalized);
-      return;
-    }
-
-    this.stringBuilder.append(normalized);
-  }
-
-  private normalizeInterpolatedValue(value: any): any {
     if (value === null || value === undefined) {
-      return value;
+      return;
     }
 
-    if (this.jsonOutputMode && typeof value === 'string') {
-      const trimmed = value.trim();
-      if (!this.isJsonLiteral(trimmed)) {
-        return JSON.stringify(value);
-      }
-      return value;
+    if (typeof value === 'string') {
+      this.stringBuilder.appendString(value);
+      return;
     }
 
-    return value;
-  }
-
-  private isJsonLiteral(value: string): boolean {
-    if (value.length === 0) {
-      return false;
-    }
-
-    const first = value[0];
-    const last = value[value.length - 1];
-    if ((first === '"' && last === '"') || (first === '{' && last === '}') || (first === '[' && last === ']')) {
-      return true;
-    }
-
-    if (value === 'true' || value === 'false' || value === 'null') {
-      return true;
-    }
-
-    if (!Number.isNaN(Number(value))) {
-      return true;
-    }
-
-    return false;
-  }
-
-  private detectJsonTemplate(template: Template): boolean {
-    for (const segment of template.segments) {
-      if (segment.type !== 'Text') {
-        return false;
-      }
-
-      const trimmed = segment.value.trim();
-      if (trimmed.length === 0) {
-        continue;
-      }
-
-      const first = trimmed[0];
-      return first === '{' || first === '[';
-    }
-
-    return false;
+    this.stringBuilder.append(value);
   }
 
   private initializeGlobalScope(): void {
-    const util = this.getBuiltInProvider('util');
-    if (util !== undefined) {
-      this.scopeManager.setVariable('util', util);
-    }
-
-    const input = this.getBuiltInProvider('input');
-    if (input !== undefined) {
-      this.scopeManager.setVariable('input', input);
-    }
-
-    const context = this.getBuiltInProvider('context');
-    if (context !== undefined) {
-      this.scopeManager.setVariable('context', context);
+    // Initialize variables from context
+    if (this.context instanceof Map) {
+      for (const [key, value] of this.context.entries()) {
+        this.scopeManager.setVariable(key, value);
+      }
+    } else {
+      for (const [key, value] of Object.entries(this.context)) {
+        this.scopeManager.setVariable(key, value);
+      }
     }
   }
 
-  private getBuiltInProvider(name: string): any {
-    switch (name) {
-      case 'util':
-        if (isFlagEnabled(this.context.flags, 'APIGW_UTILS')) {
-          return this.context.util;
-        }
-        break;
-      case 'input':
-        if (isFlagEnabled(this.context.flags, 'APIGW_INPUT')) {
-          return this.context.input;
-        }
-        break;
-      case 'context':
-        if (isFlagEnabled(this.context.flags, 'APIGW_CONTEXT')) {
-          return this.context.context;
-        }
-        break;
+  private getContextVariable(name: string): any {
+    if (this.context instanceof Map) {
+      return this.context.get(name);
+    } else {
+      return this.context[name];
     }
-    return undefined;
   }
 }
 
-// Helper functions for APIGW truthiness and type checking
+// Helper functions for Velocity truthiness and type checking
 function isTruthy(value: any): boolean {
   if (value === null || value === undefined) {
     return false;
@@ -582,5 +520,3 @@ function isIterable(value: any): boolean {
   return Array.isArray(value) || 
          (value && typeof value[Symbol.iterator] === 'function');
 }
-
-/* Deviation Report: None - Evaluator matches AWS API Gateway VTL specification */

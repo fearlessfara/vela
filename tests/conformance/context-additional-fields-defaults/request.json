@@ -1,5 +1,0 @@
-{
-  "httpMethod": "POST",
-  "path": "/fallback",
-  "resource": "/{proxy+}"
-}
