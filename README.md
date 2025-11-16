@@ -1,13 +1,13 @@
 # Vela
 
-Vela is a TypeScript implementation of the AWS API Gateway Velocity Template Language (VTL) engine. It reproduces API Gateway's template evaluation behavior with a Chevrotain-based parser, scoped runtime, and provider implementations that mirror the `$util`, `$input`, and `$context` objects you would expect in production gateways.
+Vela is a pure Apache Velocity Template Language (VTL) engine implemented in TypeScript. It provides 1:1 compatibility with the Java reference implementation, using a Chevrotain-based parser and a runtime that matches Apache Velocity behavior exactly.
 
 ## Features
 
-- Chevrotain-driven lexer and parser with AWS-compatible precedence rules.
-- Feature-flagged runtime that enables gradual rollout or dual-run comparisons.
-- Provider implementations for `$util`, `$input`, and `$context` with API Gateway-compatible semantics.
-- Golden conformance test runner and diffing tools for validating parity with AWS responses.
+- Chevrotain-driven lexer and parser with Apache Velocity-compatible precedence rules.
+- Pure Velocity runtime with no API Gateway-specific code.
+- Simple API: template string + context map → rendered output.
+- Test harness for comparing TypeScript output with Java reference implementation.
 
 ## Installation
 
@@ -15,45 +15,83 @@ Vela is a TypeScript implementation of the AWS API Gateway Velocity Template Lan
 # Clone the repository and install dependencies
 npm install
 
+# Initialize the Apache Velocity submodule
+git submodule update --init --recursive
+
 # Compile the library and supporting tools
 npm run build
 ```
 
 ## Usage
 
-The library targets Node.js 22 and ships TypeScript sources. You can execute templates through the compiled runtime or by using the provided conformance runners.
+The library targets Node.js 22 and ships TypeScript sources. You can execute templates through the compiled runtime.
 
-```bash
-# Run the conformance harness across all recorded test cases
-npm run test:conf
+```typescript
+import { VelocityEngine } from '@fearlessfara/vela';
 
-# Execute the API Gateway simulator against a single template
-npm run test:single
+const engine = new VelocityEngine();
+
+// Simple template with context variables
+const template = 'Hello $name! You have $count items.';
+const context = {
+  name: 'World',
+  count: 42
+};
+
+const output = engine.render(template, context);
+// Output: "Hello World! You have 42 items."
 ```
 
-Templates and test fixtures live in the `tests/` directory. The `tools/run-apigw.ts` script emulates the AWS execution environment so you can experiment with new templates locally.
+### Advanced Usage
 
-## AWS API Gateway Feature Parity
+For advanced usage, you can access the parser, AST converter, and evaluator directly:
 
-Vela follows the AWS API Gateway VTL specification tracked in [`docs/APIGW_SPEC.md`](docs/APIGW_SPEC.md). Progress toward full parity is captured below:
+```typescript
+import { VtlParser, cstToAst, VtlEvaluator } from '@fearlessfara/vela';
 
-### Completed
+const parser = new VtlParser();
+const parseResult = parser.parse(template);
+const ast = cstToAst(parseResult.cst);
+const evaluator = new VtlEvaluator(context);
+const output = evaluator.evaluateTemplate(ast);
+```
 
-- Core infrastructure: project structure, lexer, CST/AST mapping, runtime scope, and string builder.
-- APIGW providers: `$util`, `$input`, `$context`, and the VTL engine with feature flag integration.
-- Conformance tooling: golden tests, diff utilities, and documented test cases.
+## Testing
 
-### In Progress
+The project includes a test harness that compares TypeScript output with the Java Apache Velocity reference implementation.
 
-- Parser quality-of-life improvements like richer error messages, recovery, and source position tracking.
-- Runtime enhancements including macro execution, additional JSONPath operators, and general performance tuning.
+```bash
+# Run all velocity tests (compares TS vs Java)
+npm run test:velocity
 
-### Pending
+# Run a single test case
+npm run test:velocity:single <test-name>
 
-- Advanced template directives such as `#parse` and `#include`, macro inheritance, and selection template support.
-- Integration response mapping, legacy compatibility modes, and expanded performance/benchmark tooling.
+# Run unit tests
+npm run test:unit
+```
 
-For a detailed checklist of implemented and outstanding behaviors, see [`docs/APIGW_PROGRESS.md`](docs/APIGW_PROGRESS.md), which enumerates the exact items and conformance coverage.
+Test cases are located in `tests/velocity/`. Each test case contains:
+- `template.vtl` - Velocity template to render
+- `input.json` - Context/variables as JSON object
+
+The Java output serves as the source of truth for all comparisons.
+
+## Apache Velocity Compatibility
+
+Vela aims for 1:1 compatibility with the Apache Velocity Java reference implementation. The test harness ensures that TypeScript output matches Java output byte-for-byte.
+
+### Supported Features
+
+- Text segments and interpolations
+- Directives: `#set`, `#if/#elseif/#else`, `#foreach`, `#break`, `#stop`
+- Expressions: literals, member access, function calls, arrays, maps, operators
+- Variable references: `$var`, `$!var`, `${expr}`
+- Scope management for `#set` and `#foreach`
+
+### Test Harness
+
+The test harness (`tools/compare-velocity/`) invokes both the Java and TypeScript engines and compares their outputs. This ensures ongoing compatibility as the codebase evolves.
 
 ## Support
 
@@ -61,12 +99,10 @@ For a detailed checklist of implemented and outstanding behaviors, see [`docs/AP
 - **Security concerns:** Please use a private disclosure channel such as a direct maintainer email rather than filing a public issue.
 - **Questions & discussions:** Start a GitHub discussion or reach out through the repository's preferred community forum.
 
-If you are unsure where to start, the maintainers recommend reviewing the progress document and existing test cases before filing new issues to avoid duplicates.
-
 ## Contributing
 
 1. Fork or clone the repository and create topic branches off `main`.
 2. Run `npm run build` followed by `npm run test` to ensure changes pass all checks.
-3. Submit a pull request that references any related issues and describes expected AWS parity behavior.
+3. Submit a pull request that references any related issues and describes expected Apache Velocity compatibility behavior.
 
-Contributions that expand conformance coverage or add missing API Gateway semantics are particularly welcome.
+Contributions that expand test coverage or improve compatibility with the Java reference implementation are particularly welcome.

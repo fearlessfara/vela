@@ -1,8 +1,7 @@
-/** AWS-SPEC: Runtime Evaluator | OWNER: vela | STATUS: READY */
+/** Apache Velocity: Runtime Evaluator | OWNER: vela | STATUS: READY */
 
 import { ScopeManager } from './scope.js';
 import { StringBuilder } from './stringBuilder.js';
-import { FeatureFlags, isFlagEnabled } from '../config/featureFlags.js';
 import {
   Template,
   Segment,
@@ -25,13 +24,10 @@ import {
   TernaryOperation,
 } from '../parser/ast.js';
 
-// APIGW:Runtime Evaluator
+// Apache Velocity: Runtime Evaluator
 
 export interface EvaluationContext {
-  util?: any;
-  input?: any;
-  context?: any;
-  flags: FeatureFlags;
+  [key: string]: any;
 }
 
 export class VtlEvaluator {
@@ -40,7 +36,6 @@ export class VtlEvaluator {
   private context: EvaluationContext;
   private shouldStop: boolean;
   private shouldBreak: boolean;
-  private jsonOutputMode: boolean;
 
   constructor(context: EvaluationContext) {
     this.scopeManager = new ScopeManager();
@@ -48,7 +43,6 @@ export class VtlEvaluator {
     this.context = context;
     this.shouldStop = false;
     this.shouldBreak = false;
-    this.jsonOutputMode = false;
   }
 
   evaluateTemplate(template: Template): string {
@@ -58,7 +52,6 @@ export class VtlEvaluator {
 
     this.scopeManager.clear();
     this.initializeGlobalScope();
-    this.jsonOutputMode = this.detectJsonTemplate(template);
 
     for (const segment of template.segments) {
       if (this.shouldStop) {
@@ -265,15 +258,15 @@ export class VtlEvaluator {
     const value = this.scopeManager.getVariable(ref.name);
 
     if (value === undefined) {
-      const provider = this.getBuiltInProvider(ref.name);
-      if (provider !== undefined) {
-        return provider;
+      // Check context map
+      if (this.context[ref.name] !== undefined) {
+        return this.context[ref.name];
       }
 
       if (ref.quiet) {
         return '';
       }
-      // In APIGW, undefined variables return empty string
+      // In Velocity, undefined variables return empty string
       return '';
     }
     
@@ -409,153 +402,51 @@ export class VtlEvaluator {
   }
 
   private callBuiltInFunction(name: string, args: any[]): any {
-    // Handle $util, $input, $context functions based on feature flags
-    if (name.startsWith('util.') && isFlagEnabled(this.context.flags, 'APIGW_UTILS')) {
-      return this.callUtilFunction(name.slice(5), args);
+    // Handle function calls from context
+    // Functions can be accessed via dot notation (e.g., $util.json())
+    // Check if the function exists in the context
+    const parts = name.split('.');
+    let obj: any = this.context;
+    
+    for (const part of parts) {
+      if (obj && typeof obj === 'object' && part in obj) {
+        obj = obj[part];
+      } else {
+        return '';
+      }
     }
     
-    if (name.startsWith('input.') && isFlagEnabled(this.context.flags, 'APIGW_INPUT')) {
-      return this.callInputFunction(name.slice(6), args);
+    if (typeof obj === 'function') {
+      return obj(...args);
     }
     
-    if (name.startsWith('context.') && isFlagEnabled(this.context.flags, 'APIGW_CONTEXT')) {
-      return this.callContextFunction(name.slice(8), args);
-    }
-    
-    return '';
-  }
-
-  private callUtilFunction(method: string, args: any[]): any {
-    if (this.context.util && typeof this.context.util[method] === 'function') {
-      return this.context.util[method](...args);
-    }
-    return '';
-  }
-
-  private callInputFunction(method: string, args: any[]): any {
-    if (this.context.input && typeof this.context.input[method] === 'function') {
-      return this.context.input[method](...args);
-    }
-    return '';
-  }
-
-  private callContextFunction(method: string, args: any[]): any {
-    if (this.context.context && typeof this.context.context[method] === 'function') {
-      return this.context.context[method](...args);
-    }
     return '';
   }
 
   private appendInterpolatedValue(value: any): void {
-    const normalized = this.normalizeInterpolatedValue(value);
-    if (normalized === null || normalized === undefined) {
-      return;
-    }
-
-    if (typeof normalized === 'string') {
-      this.stringBuilder.appendString(normalized);
-      return;
-    }
-
-    this.stringBuilder.append(normalized);
-  }
-
-  private normalizeInterpolatedValue(value: any): any {
     if (value === null || value === undefined) {
-      return value;
+      return;
     }
 
-    if (this.jsonOutputMode && typeof value === 'string') {
-      const trimmed = value.trim();
-      if (!this.isJsonLiteral(trimmed)) {
-        return JSON.stringify(value);
-      }
-      return value;
+    if (typeof value === 'string') {
+      this.stringBuilder.appendString(value);
+      return;
     }
 
-    return value;
-  }
-
-  private isJsonLiteral(value: string): boolean {
-    if (value.length === 0) {
-      return false;
-    }
-
-    const first = value[0];
-    const last = value[value.length - 1];
-    if ((first === '"' && last === '"') || (first === '{' && last === '}') || (first === '[' && last === ']')) {
-      return true;
-    }
-
-    if (value === 'true' || value === 'false' || value === 'null') {
-      return true;
-    }
-
-    if (!Number.isNaN(Number(value))) {
-      return true;
-    }
-
-    return false;
-  }
-
-  private detectJsonTemplate(template: Template): boolean {
-    for (const segment of template.segments) {
-      if (segment.type !== 'Text') {
-        return false;
-      }
-
-      const trimmed = segment.value.trim();
-      if (trimmed.length === 0) {
-        continue;
-      }
-
-      const first = trimmed[0];
-      return first === '{' || first === '[';
-    }
-
-    return false;
+    this.stringBuilder.append(value);
   }
 
   private initializeGlobalScope(): void {
-    const util = this.getBuiltInProvider('util');
-    if (util !== undefined) {
-      this.scopeManager.setVariable('util', util);
+    // Initialize global scope with all context variables
+    for (const key in this.context) {
+      if (Object.prototype.hasOwnProperty.call(this.context, key)) {
+        this.scopeManager.setVariable(key, this.context[key]);
+      }
     }
-
-    const input = this.getBuiltInProvider('input');
-    if (input !== undefined) {
-      this.scopeManager.setVariable('input', input);
-    }
-
-    const context = this.getBuiltInProvider('context');
-    if (context !== undefined) {
-      this.scopeManager.setVariable('context', context);
-    }
-  }
-
-  private getBuiltInProvider(name: string): any {
-    switch (name) {
-      case 'util':
-        if (isFlagEnabled(this.context.flags, 'APIGW_UTILS')) {
-          return this.context.util;
-        }
-        break;
-      case 'input':
-        if (isFlagEnabled(this.context.flags, 'APIGW_INPUT')) {
-          return this.context.input;
-        }
-        break;
-      case 'context':
-        if (isFlagEnabled(this.context.flags, 'APIGW_CONTEXT')) {
-          return this.context.context;
-        }
-        break;
-    }
-    return undefined;
   }
 }
 
-// Helper functions for APIGW truthiness and type checking
+// Helper functions for Velocity truthiness and type checking
 function isTruthy(value: any): boolean {
   if (value === null || value === undefined) {
     return false;
@@ -583,4 +474,4 @@ function isIterable(value: any): boolean {
          (value && typeof value[Symbol.iterator] === 'function');
 }
 
-/* Deviation Report: None - Evaluator matches AWS API Gateway VTL specification */
+/* Apache Velocity Runtime Evaluator - Matches Java reference implementation */

@@ -4,29 +4,23 @@ The VTL parser includes a built-in debug mode that displays detailed information
 
 ## Usage
 
-### Using the VtlEngine class directly:
+### Using the VtlParser class directly:
 
 ```typescript
-import { VtlEngine } from './src/apigw/engine.js';
+import { VtlParser } from './src/parser/vtlParser.js';
 
-const engine = new VtlEngine(true); // Enable debug mode
-const result = engine.renderTemplate({
-  template: '#set($body = $input.json("$"))\n{"body": $util.toJson($body)}',
-  event: { /* ... */ },
-  flags: { APIGW_UTILS: 'ON', APIGW_INPUT: 'ON' }
-});
+const parser = new VtlParser(true); // Enable debug mode
+const result = parser.parse(template);
 ```
 
-### Using the convenience function:
+### Using the VelocityEngine:
 
 ```typescript
-import { renderTemplate } from './src/index.js';
+import { VelocityEngine, VtlParser } from './src/index.js';
 
-const result = renderTemplate({
-  template: '#set($body = $input.json("$"))\n{"body": $util.toJson($body)}',
-  event: { /* ... */ },
-  flags: { APIGW_UTILS: 'ON', APIGW_INPUT: 'ON' }
-}, true); // <-- Debug mode enabled
+// The parser can be accessed for debugging
+const parser = new VtlParser(true); // Enable debug mode
+const parseResult = parser.parse(template);
 ```
 
 ## Debug Output
@@ -47,26 +41,21 @@ When debug mode is enabled, the parser will display:
 
 ```
 === VTL PARSER DEBUG ===
-Input: #set($body = $input.json('$'))
-{
-  "statusCode": 200,
-  "body": $util.toJson($body)
-}
+Input: #set($name = "World")
+Hello $name!
 
 Lexer Result:
 Tokens:
 0: SetDirective: "#set"
 1: LParen: "("
-2: DollarRef: "$body"
+2: DollarRef: "$name"
 3: Assign: "="
-4: DollarRef: "$input"
-5: Dot: "."
-6: Identifier: "json"
-7: LParen: "("
-8: StringLiteral: "'$'"
-9: RParen: ")"
-10: RParen: ")"
-...
+4: StringLiteral: '"World"'
+5: RParen: ")"
+6: Newline: "\n"
+7: Text: "Hello "
+8: DollarRef: "$name"
+9: Newline: "\n"
 
 Parser Result:
 Parse successful!

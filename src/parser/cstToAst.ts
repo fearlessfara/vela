@@ -1,4 +1,4 @@
-/** AWS-SPEC: CST to AST Mapper | OWNER: vela | STATUS: READY */
+/** Apache Velocity: CST to AST Mapper | OWNER: vela | STATUS: READY */
 
 import { CstNode, CstElement } from 'chevrotain';
 import {
@@ -28,7 +28,7 @@ import {
   SourceLocation,
 } from './ast.js';
 
-// APIGW:CST to AST Mapper
+// Apache Velocity: CST to AST Mapper
 
 export function cstToAst(cst: CstNode): Template {
   // Handle case where template is a single expression
@@ -708,4 +708,4 @@ function getPosition(offset: number): Position {
   };
 }
 
-/* Deviation Report: None - CST to AST mapper matches AWS API Gateway VTL specification */
+/* Apache Velocity CST to AST Mapper - Matches Java reference implementation */
