@@ -119,6 +119,7 @@ function applySpaceGobbling(segments: Segment[]): Segment[] {
   
   // Then, process top-level segments to remove trailing newlines after directives
   const result: Segment[] = [];
+  let lastWasDirectiveThatGobbled = false; // Track if last directive gobbled a newline
   
   for (let i = 0; i < processedSegments.length; i++) {
     const segment = processedSegments[i];
@@ -140,23 +141,31 @@ function applySpaceGobbling(segments: Segment[]): Segment[] {
       segment.type === 'IncludeDirective';
     
     // Check if prev segment ended with newline (or is start of template)
+    // Also check if previous directive gobbled a newline (meaning current directive starts on new line)
     const prevSegment = result[result.length - 1];
     const startsOnNewLine = !prevSegment || 
-      (prevSegment.type === 'Text' && prevSegment.value.endsWith('\n'));
+      (prevSegment.type === 'Text' && prevSegment.value.endsWith('\n')) ||
+      lastWasDirectiveThatGobbled;
     
     result.push(segment);
+    lastWasDirectiveThatGobbled = false; // Reset for this iteration
     
     // If block directive starts on new line, gobble trailing newline from next text segment
     // Also applies to certain line directives (#evaluate, #parse, #include)
     if ((isBlockDirective || isLineDirectiveWithGobbling) && startsOnNewLine && nextSegment?.type === 'Text') {
       const text = nextSegment.value;
       if (text.startsWith('\n')) {
-        // Create new text node with leading newline removed
-        result.push({
-          ...nextSegment,
-          value: text.substring(1),
-        });
+        // Remove the leading newline
+        const remainingText = text.substring(1);
+        // Only push the segment if there's remaining text (skip if it was just a newline)
+        if (remainingText.length > 0) {
+          result.push({
+            ...nextSegment,
+            value: remainingText,
+          });
+        }
         i++; // Skip the next segment since we already processed it
+        lastWasDirectiveThatGobbled = true; // Mark that this directive gobbled a newline
       }
     }
   }

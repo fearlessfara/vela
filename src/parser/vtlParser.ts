@@ -175,6 +175,7 @@ export class VtlParser extends CstParser {
   });
 
   // Text: non-directive, non-interpolation content (up to next # or $)
+  // Per Java Parser.jjt line 1580: Whitespace can also be text
   text = this.RULE('text', () => {
     this.AT_LEAST_ONE(() => {
       this.CONSUME(AnyTextFragment);

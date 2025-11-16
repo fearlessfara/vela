@@ -357,11 +357,12 @@ export const EndDirective = createToken({
 // Note: a generic Directive token is unnecessary when using specific ones
 
 // Comments - these should be SKIPPED (not included in output)
-// Line comments: ## ... until end of line
+// Line comments: ## ... until end of line (INCLUDING the newline)
+// Per Java Parser.jjt line 1126: SINGLE_LINE_COMMENT includes the newline
 export const LineComment = createToken({
   name: 'LineComment',
-  pattern: /##[^\r\n]*/,
-  line_breaks: false,
+  pattern: /##[^\r\n]*(\r\n|\r|\n)?/,
+  line_breaks: true, // Changed to true since we consume the newline
   group: Lexer.SKIPPED, // Skip comments - they don't appear in output
 });
 
