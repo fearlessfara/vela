@@ -2,6 +2,8 @@
 
 import { ScopeManager } from './scope.js';
 import { StringBuilder } from './stringBuilder.js';
+import { VtlParser } from '../parser/vtlParser.js';
+import { cstToAst } from '../parser/cstToAst.js';
 import {
   Template,
   Segment,
@@ -10,6 +12,9 @@ import {
   IfDirective,
   SetDirective,
   ForEachDirective,
+  EvaluateDirective,
+  ParseDirective,
+  IncludeDirective,
   Expression,
   Literal,
   VariableReference,
@@ -88,6 +93,15 @@ export class VtlEvaluator {
         break;
       case 'MacroDirective':
         this.evaluateMacroDirective(segment);
+        break;
+      case 'EvaluateDirective':
+        this.evaluateEvaluateDirective(segment);
+        break;
+      case 'ParseDirective':
+        this.evaluateParseDirective(segment);
+        break;
+      case 'IncludeDirective':
+        this.evaluateIncludeDirective(segment);
         break;
     }
   }
@@ -215,6 +229,58 @@ export class VtlEvaluator {
       macroDirective.parameters,
       macroDirective.body
     );
+  }
+
+  private evaluateEvaluateDirective(evaluateDirective: EvaluateDirective): void {
+    // #evaluate evaluates a string expression as a template
+    const expressionValue = this.evaluateExpression(evaluateDirective.expression);
+    const templateString = String(expressionValue);
+    
+    if (!templateString) {
+      return;
+    }
+    
+    // Parse and evaluate the template string
+    try {
+      const parser = new VtlParser();
+      const parseResult = parser.parse(templateString);
+      
+      if (parseResult.errors && parseResult.errors.length > 0) {
+        // Silently fail for now
+        return;
+      }
+      
+      if (parseResult.cst) {
+        const ast = cstToAst(parseResult.cst);
+        // Evaluate in current scope context - create sub-evaluator that shares scope
+        const subEvaluator = new VtlEvaluator(this.context);
+        // Share the scope manager and string builder so variables are accessible
+        // and output goes to the same place
+        (subEvaluator as any).scopeManager = this.scopeManager;
+        (subEvaluator as any).stringBuilder = this.stringBuilder;
+        // Don't call evaluateTemplate as it clears the string builder
+        // Instead, evaluate segments directly
+        for (const segment of ast.segments) {
+          if ((subEvaluator as any).shouldStop) {
+            break;
+          }
+          (subEvaluator as any).evaluateSegment(segment);
+        }
+      }
+    } catch (error) {
+      // Silently fail on evaluation errors
+    }
+  }
+
+  private evaluateParseDirective(parseDirective: ParseDirective): void {
+    // #parse includes and evaluates another template file
+    // For now, not implemented (requires file system access)
+    // This would need a resource loader
+  }
+
+  private evaluateIncludeDirective(includeDirective: IncludeDirective): void {
+    // #include includes file content without evaluation
+    // For now, not implemented (requires file system access)
   }
 
   private evaluateExpression(expr: Expression): any {

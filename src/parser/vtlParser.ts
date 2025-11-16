@@ -46,6 +46,9 @@ import {
   BreakDirective,
   StopDirective,
   MacroDirective,
+  EvaluateDirective,
+  ParseDirective,
+  IncludeDirective,
   EndDirective,
   AnyTextFragment,
 } from '../lexer/tokens.js';
@@ -223,6 +226,9 @@ export class VtlParser extends CstParser {
       { ALT: () => this.SUBRULE(this.breakDirective) },
       { ALT: () => this.SUBRULE(this.stopDirective) },
       { ALT: () => this.SUBRULE(this.macroDirective) },
+      { ALT: () => this.SUBRULE(this.evaluateDirective) },
+      { ALT: () => this.SUBRULE(this.parseDirective) },
+      { ALT: () => this.SUBRULE(this.includeDirective) },
     ]);
   });
 
@@ -369,6 +375,30 @@ export class VtlParser extends CstParser {
       },
     });
     this.CONSUME(EndDirective, { LABEL: 'endKeyword' });
+  });
+
+  // #evaluate directive
+  evaluateDirective = this.RULE('evaluateDirective', () => {
+    this.CONSUME(EvaluateDirective, { LABEL: 'evaluateKeyword' });
+    this.CONSUME(LParen);
+    this.SUBRULE(this.expression, { LABEL: 'expression' });
+    this.CONSUME(RParen);
+  });
+
+  // #parse directive
+  parseDirective = this.RULE('parseDirective', () => {
+    this.CONSUME(ParseDirective, { LABEL: 'parseKeyword' });
+    this.CONSUME(LParen);
+    this.SUBRULE(this.expression, { LABEL: 'expression' });
+    this.CONSUME(RParen);
+  });
+
+  // #include directive
+  includeDirective = this.RULE('includeDirective', () => {
+    this.CONSUME(IncludeDirective, { LABEL: 'includeKeyword' });
+    this.CONSUME(LParen);
+    this.SUBRULE(this.expression, { LABEL: 'expression' });
+    this.CONSUME(RParen);
   });
 
   // Expression parsing with proper precedence

@@ -2,49 +2,72 @@
 
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { readFile } from 'fs/promises';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { existsSync } from 'fs';
+import { fileURLToPath } from 'url';
 
 const execAsync = promisify(exec);
 
 export interface JavaRunnerOptions {
   template: string;
   context: Record<string, any>;
-  velocityEnginePath?: string;
 }
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+/**
+ * Runs a Velocity template using the Java reference implementation
+ */
 export async function runJavaVelocity(options: JavaRunnerOptions): Promise<string> {
-  const { template, context, velocityEnginePath } = options;
+  const { template, context } = options;
   
-  // Default to vendor/velocity-engine if not provided
-  const enginePath = velocityEnginePath || join(process.cwd(), 'vendor', 'velocity-engine');
+  const jarDir = join(__dirname, 'jars');
+  const runnerClass = join(__dirname, 'VelocityRunner.class');
   
-  if (!existsSync(enginePath)) {
+  // Check if JARs and compiled class exist
+  if (!existsSync(join(jarDir, 'velocity-engine-core-2.3.jar'))) {
     throw new Error(
-      `Apache Velocity engine not found at ${enginePath}. ` +
-      `Please ensure the git submodule is initialized: git submodule update --init`
+      'Velocity JARs not found. Please run: cd tools/compare-velocity && bash setup-java-runner.sh'
     );
   }
-
-  // Create a temporary Java file that uses Velocity to render the template
-  // For now, we'll use a simple approach: write template and context to temp files
-  // and invoke a Java program that reads them
   
-  // Note: This is a simplified implementation. A full implementation would:
-  // 1. Build the Velocity engine JAR if needed
-  // 2. Create a small Java wrapper that loads template and context
-  // 3. Execute it and capture output
+  if (!existsSync(runnerClass)) {
+    throw new Error(
+      'VelocityRunner.class not found. Please compile: cd tools/compare-velocity && javac -cp "jars/*" VelocityRunner.java'
+    );
+  }
   
-  // For now, return a placeholder that indicates Java runner needs implementation
-  // The actual implementation would require:
-  // - Building Velocity engine from source
-  // - Creating a Java wrapper class
-  // - Executing: java -cp velocity.jar:... VelocityRunner template.vtl context.json
+  // Escape template and context JSON for shell
+  const escapedTemplate = template.replace(/'/g, "'\"'\"'");
+  const contextJson = JSON.stringify(context);
+  const escapedContext = contextJson.replace(/'/g, "'\"'\"'");
   
-  throw new Error(
-    'Java runner not yet fully implemented. ' +
-    'This requires building the Apache Velocity engine and creating a Java wrapper. ' +
-    'See vendor/velocity-engine for the Java source code.'
-  );
+  // Run Java program
+  // Use proper classpath separator for the platform
+  const pathSeparator = process.platform === 'win32' ? ';' : ':';
+  const classpath = `jars/*${pathSeparator}${__dirname}`;
+  const command = `java -cp "${classpath}" VelocityRunner '${escapedTemplate}' '${escapedContext}'`;
+  
+  try {
+    const { stdout, stderr } = await execAsync(command, {
+      cwd: __dirname,
+      maxBuffer: 10 * 1024 * 1024, // 10MB buffer
+    });
+    
+    if (stderr && !stderr.includes('Picked up')) {
+      // Ignore Java warnings about JAVA_TOOL_OPTIONS
+      if (!stderr.includes('JAVA_TOOL_OPTIONS')) {
+        console.warn('Java stderr:', stderr);
+      }
+    }
+    
+    return stdout;
+  } catch (error: any) {
+    if (error.stdout) {
+      // Sometimes errors go to stdout
+      return error.stdout;
+    }
+    throw new Error(`Java runner failed: ${error.message}\n${error.stderr || ''}`);
+  }
 }

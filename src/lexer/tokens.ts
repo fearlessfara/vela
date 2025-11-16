@@ -270,6 +270,21 @@ export const MacroDirective = createToken({
   pattern: /#macro\b/,
 });
 
+export const EvaluateDirective = createToken({
+  name: 'EvaluateDirective',
+  pattern: /#evaluate\b/,
+});
+
+export const ParseDirective = createToken({
+  name: 'ParseDirective',
+  pattern: /#parse\b/,
+});
+
+export const IncludeDirective = createToken({
+  name: 'IncludeDirective',
+  pattern: /#include\b/,
+});
+
 export const EndDirective = createToken({
   name: 'EndDirective',
   pattern: /#end\b/,
@@ -379,6 +394,9 @@ export const allTokens: TokenType[] = [
   BreakDirective,
   StopDirective,
   MacroDirective,
+  EvaluateDirective,
+  ParseDirective,
+  IncludeDirective,
   EndDirective,
 
   // References
