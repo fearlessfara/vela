@@ -1,0 +1,430 @@
+/** Apache Velocity: Runtime Evaluator | OWNER: vela | STATUS: READY */
+import { ScopeManager } from './scope.js';
+import { StringBuilder } from './stringBuilder.js';
+import { VtlParser } from '../parser/vtlParser.js';
+import { cstToAst } from '../parser/cstToAst.js';
+export class VtlEvaluator {
+    scopeManager;
+    stringBuilder;
+    context;
+    shouldStop;
+    shouldBreak;
+    constructor(context) {
+        this.scopeManager = new ScopeManager();
+        this.stringBuilder = new StringBuilder();
+        this.context = context;
+        this.shouldStop = false;
+        this.shouldBreak = false;
+    }
+    evaluateTemplate(template) {
+        this.stringBuilder.clear();
+        this.shouldStop = false;
+        this.shouldBreak = false;
+        this.scopeManager.clear();
+        this.initializeGlobalScope();
+        for (const segment of template.segments) {
+            if (this.shouldStop) {
+                break;
+            }
+            this.evaluateSegment(segment);
+        }
+        return this.stringBuilder.flush();
+    }
+    evaluateSegment(segment) {
+        if (this.shouldStop) {
+            return;
+        }
+        switch (segment.type) {
+            case 'Text':
+                this.evaluateText(segment);
+                break;
+            case 'Interpolation':
+                this.evaluateInterpolation(segment);
+                break;
+            case 'IfDirective':
+                this.evaluateIfDirective(segment);
+                break;
+            case 'SetDirective':
+                this.evaluateSetDirective(segment);
+                break;
+            case 'ForEachDirective':
+                this.evaluateForEachDirective(segment);
+                break;
+            case 'BreakDirective':
+                this.evaluateBreakDirective();
+                break;
+            case 'StopDirective':
+                this.evaluateStopDirective();
+                break;
+            case 'MacroDirective':
+                this.evaluateMacroDirective(segment);
+                break;
+            case 'EvaluateDirective':
+                this.evaluateEvaluateDirective(segment);
+                break;
+            case 'ParseDirective':
+                this.evaluateParseDirective(segment);
+                break;
+            case 'IncludeDirective':
+                this.evaluateIncludeDirective(segment);
+                break;
+        }
+    }
+    evaluateText(text) {
+        this.stringBuilder.appendString(text.value);
+    }
+    evaluateInterpolation(interp) {
+        const value = this.evaluateExpression(interp.expression);
+        this.appendInterpolatedValue(value);
+    }
+    evaluateIfDirective(ifDirective) {
+        const condition = this.evaluateExpression(ifDirective.condition);
+        if (isTruthy(condition)) {
+            for (const segment of ifDirective.thenBody) {
+                this.evaluateSegment(segment);
+            }
+        }
+        else {
+            // Check else-if branches
+            let matched = false;
+            for (const elseIf of ifDirective.elseIfBranches) {
+                if (isTruthy(this.evaluateExpression(elseIf.condition))) {
+                    for (const segment of elseIf.body) {
+                        this.evaluateSegment(segment);
+                    }
+                    matched = true;
+                    break;
+                }
+            }
+            // Check else branch
+            if (!matched && ifDirective.elseBody) {
+                for (const segment of ifDirective.elseBody) {
+                    this.evaluateSegment(segment);
+                }
+            }
+        }
+    }
+    evaluateSetDirective(setDirective) {
+        const value = this.evaluateExpression(setDirective.value);
+        this.scopeManager.setVariable(setDirective.variable, value);
+    }
+    evaluateForEachDirective(forEachDirective) {
+        const iterable = this.evaluateExpression(forEachDirective.iterable);
+        if (!isIterable(iterable)) {
+            // If not iterable and there's an else clause, execute it
+            if (forEachDirective.elseBody && forEachDirective.elseBody.length > 0) {
+                for (const segment of forEachDirective.elseBody) {
+                    this.evaluateSegment(segment);
+                }
+            }
+            return;
+        }
+        // Convert to array to get length and index information
+        const items = Array.from(iterable);
+        const totalItems = items.length;
+        // If empty and there's an else clause, execute it
+        if (totalItems === 0 && forEachDirective.elseBody && forEachDirective.elseBody.length > 0) {
+            for (const segment of forEachDirective.elseBody) {
+                this.evaluateSegment(segment);
+            }
+            return;
+        }
+        this.scopeManager.pushScope();
+        try {
+            for (let index = 0; index < items.length; index++) {
+                if (this.shouldStop || this.shouldBreak) {
+                    break;
+                }
+                const item = items[index];
+                const count = index + 1; // 1-based count
+                const isFirst = index === 0;
+                const isLast = index === totalItems - 1;
+                const hasNext = index < totalItems - 1;
+                // Create the $foreach object with loop control properties
+                const foreachObject = {
+                    index: index, // 0-based index
+                    count: count, // 1-based count
+                    first: isFirst, // boolean
+                    last: isLast, // boolean
+                    hasNext: hasNext, // boolean
+                    stop: () => {
+                        this.shouldBreak = true;
+                    }
+                };
+                // Set both the loop variable and the $foreach object
+                this.scopeManager.setVariable(forEachDirective.variable, item);
+                this.scopeManager.setVariable('foreach', foreachObject);
+                for (const segment of forEachDirective.body) {
+                    this.evaluateSegment(segment);
+                }
+            }
+        }
+        finally {
+            this.scopeManager.popScope();
+            this.shouldBreak = false;
+        }
+    }
+    evaluateBreakDirective() {
+        this.shouldBreak = true;
+    }
+    evaluateStopDirective() {
+        this.shouldStop = true;
+    }
+    evaluateMacroDirective(macroDirective) {
+        // Stub implementation - macros not yet supported
+        this.scopeManager.defineMacro(macroDirective.name, macroDirective.parameters, macroDirective.body);
+    }
+    evaluateEvaluateDirective(evaluateDirective) {
+        // #evaluate evaluates a string expression as a template
+        const expressionValue = this.evaluateExpression(evaluateDirective.expression);
+        const templateString = String(expressionValue);
+        if (!templateString) {
+            return;
+        }
+        // Parse and evaluate the template string
+        try {
+            const parser = new VtlParser();
+            const parseResult = parser.parse(templateString);
+            if (parseResult.errors && parseResult.errors.length > 0) {
+                // Silently fail for now
+                return;
+            }
+            if (parseResult.cst) {
+                const ast = cstToAst(parseResult.cst);
+                // Evaluate in current scope context - create sub-evaluator that shares scope
+                const subEvaluator = new VtlEvaluator(this.context);
+                // Share the scope manager and string builder so variables are accessible
+                // and output goes to the same place
+                subEvaluator.scopeManager = this.scopeManager;
+                subEvaluator.stringBuilder = this.stringBuilder;
+                // Don't call evaluateTemplate as it clears the string builder
+                // Instead, evaluate segments directly
+                for (const segment of ast.segments) {
+                    if (subEvaluator.shouldStop) {
+                        break;
+                    }
+                    subEvaluator.evaluateSegment(segment);
+                }
+            }
+        }
+        catch (error) {
+            // Silently fail on evaluation errors
+        }
+    }
+    evaluateParseDirective(_parseDirective) {
+        // #parse includes and evaluates another template file
+        // For now, not implemented (requires file system access)
+        // This would need a resource loader
+    }
+    evaluateIncludeDirective(_includeDirective) {
+        // #include includes file content without evaluation
+        // For now, not implemented (requires file system access)
+    }
+    evaluateExpression(expr) {
+        switch (expr.type) {
+            case 'Literal':
+                return this.evaluateLiteral(expr);
+            case 'VariableReference':
+                return this.evaluateVariableReference(expr);
+            case 'MemberAccess':
+                return this.evaluateMemberAccess(expr);
+            case 'FunctionCall':
+                return this.evaluateFunctionCall(expr);
+            case 'ArrayAccess':
+                return this.evaluateArrayAccess(expr);
+            case 'ObjectLiteral':
+                return this.evaluateObjectLiteral(expr);
+            case 'ArrayLiteral':
+                return this.evaluateArrayLiteral(expr);
+            case 'RangeLiteral':
+                return this.evaluateRangeLiteral(expr);
+            case 'BinaryOperation':
+                return this.evaluateBinaryOperation(expr);
+            case 'UnaryOperation':
+                return this.evaluateUnaryOperation(expr);
+            case 'TernaryOperation':
+                return this.evaluateTernaryOperation(expr);
+            default:
+                throw new Error(`Unknown expression type: ${expr.type}`);
+        }
+    }
+    evaluateLiteral(literal) {
+        return literal.value;
+    }
+    evaluateVariableReference(ref) {
+        const value = this.scopeManager.getVariable(ref.name);
+        if (value === undefined) {
+            // Check context for variable
+            const contextValue = this.getContextVariable(ref.name);
+            if (contextValue !== undefined) {
+                return contextValue;
+            }
+            if (ref.quiet) {
+                return '';
+            }
+            // In Velocity, undefined variables return empty string
+            return '';
+        }
+        return value;
+    }
+    evaluateMemberAccess(member) {
+        const object = this.evaluateExpression(member.object);
+        if (object === null || object === undefined) {
+            return '';
+        }
+        if (typeof object === 'object' && object !== null) {
+            const value = object[member.property];
+            if (typeof value === 'function') {
+                return value.bind(object);
+            }
+            return value !== undefined ? value : '';
+        }
+        return '';
+    }
+    evaluateFunctionCall(call) {
+        const callee = this.evaluateExpression(call.callee);
+        const args = call.arguments.map(arg => this.evaluateExpression(arg));
+        if (typeof callee === 'function') {
+            return callee(...args);
+        }
+        return '';
+    }
+    evaluateArrayAccess(access) {
+        const object = this.evaluateExpression(access.object);
+        const index = this.evaluateExpression(access.index);
+        if (Array.isArray(object) && typeof index === 'number') {
+            return object[index] || '';
+        }
+        if (typeof object === 'object' && object !== null && typeof index === 'string') {
+            return object[index] || '';
+        }
+        return '';
+    }
+    evaluateObjectLiteral(obj) {
+        const result = {};
+        for (const prop of obj.properties) {
+            result[prop.key] = this.evaluateExpression(prop.value);
+        }
+        return result;
+    }
+    evaluateArrayLiteral(arr) {
+        return arr.elements.map(elem => this.evaluateExpression(elem));
+    }
+    evaluateRangeLiteral(range) {
+        const result = [];
+        for (let i = range.start; i <= range.end; i++) {
+            result.push(i);
+        }
+        return result;
+    }
+    evaluateBinaryOperation(op) {
+        const left = this.evaluateExpression(op.left);
+        const right = this.evaluateExpression(op.right);
+        switch (op.operator) {
+            case '+':
+                return left + right;
+            case '-':
+                return left - right;
+            case '*':
+                return left * right;
+            case '/':
+                return right !== 0 ? left / right : 0;
+            case '%':
+                return right !== 0 ? left % right : 0;
+            case '==':
+                return left == right;
+            case '!=':
+                return left != right;
+            case '<':
+                return left < right;
+            case '<=':
+                return left <= right;
+            case '>':
+                return left > right;
+            case '>=':
+                return left >= right;
+            case '&&':
+                return isTruthy(left) && isTruthy(right);
+            case '||':
+                return isTruthy(left) || isTruthy(right);
+            default:
+                throw new Error(`Unknown binary operator: ${op.operator}`);
+        }
+    }
+    evaluateUnaryOperation(op) {
+        const operand = this.evaluateExpression(op.operand);
+        switch (op.operator) {
+            case '+':
+                return +operand;
+            case '-':
+                return -operand;
+            case '!':
+                return !isTruthy(operand);
+            default:
+                throw new Error(`Unknown unary operator: ${op.operator}`);
+        }
+    }
+    evaluateTernaryOperation(ternary) {
+        const condition = this.evaluateExpression(ternary.condition);
+        return isTruthy(condition)
+            ? this.evaluateExpression(ternary.thenExpression)
+            : this.evaluateExpression(ternary.elseExpression);
+    }
+    appendInterpolatedValue(value) {
+        if (value === null || value === undefined) {
+            return;
+        }
+        if (typeof value === 'string') {
+            this.stringBuilder.appendString(value);
+            return;
+        }
+        this.stringBuilder.append(value);
+    }
+    initializeGlobalScope() {
+        // Initialize variables from context
+        if (this.context instanceof Map) {
+            for (const [key, value] of this.context.entries()) {
+                this.scopeManager.setVariable(key, value);
+            }
+        }
+        else {
+            for (const [key, value] of Object.entries(this.context)) {
+                this.scopeManager.setVariable(key, value);
+            }
+        }
+    }
+    getContextVariable(name) {
+        if (this.context instanceof Map) {
+            return this.context.get(name);
+        }
+        else {
+            return this.context[name];
+        }
+    }
+}
+// Helper functions for Velocity truthiness and type checking
+function isTruthy(value) {
+    if (value === null || value === undefined) {
+        return false;
+    }
+    if (typeof value === 'boolean') {
+        return value;
+    }
+    if (typeof value === 'number') {
+        return value !== 0 && !isNaN(value);
+    }
+    if (typeof value === 'string') {
+        return value.length > 0;
+    }
+    if (Array.isArray(value)) {
+        return value.length > 0;
+    }
+    if (typeof value === 'object') {
+        return Object.keys(value).length > 0;
+    }
+    return true;
+}
+function isIterable(value) {
+    return Array.isArray(value) ||
+        (value && typeof value[Symbol.iterator] === 'function');
+}

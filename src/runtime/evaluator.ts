@@ -272,13 +272,13 @@ export class VtlEvaluator {
     }
   }
 
-  private evaluateParseDirective(parseDirective: ParseDirective): void {
+  private evaluateParseDirective(_parseDirective: ParseDirective): void {
     // #parse includes and evaluates another template file
     // For now, not implemented (requires file system access)
     // This would need a resource loader
   }
 
-  private evaluateIncludeDirective(includeDirective: IncludeDirective): void {
+  private evaluateIncludeDirective(_includeDirective: IncludeDirective): void {
     // #include includes file content without evaluation
     // For now, not implemented (requires file system access)
   }

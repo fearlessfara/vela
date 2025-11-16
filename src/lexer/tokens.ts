@@ -164,7 +164,7 @@ export const Question = createToken({
 export const Not = createToken({
   name: 'Not',
   pattern: /!/,
-
+  categories: [AnyTextFragment], // Can be part of text in template context
 });
 
 export const And = createToken({
@@ -319,32 +319,49 @@ export const TemplateText = createToken({
       if (c0 === 35 /*#*/ || c0 === 36 /*$*/ || c0 === 10 /*\n*/ || c0 === 13 /*\r*/) return null;
 
       // do not start if previous char is a code-leading character
+      // BUT: allow starting after variable references ($name, $!name) - check if previous was part of identifier
       if (startOffset > 0) {
         const p = text.charCodeAt(startOffset - 1);
+        // Check if previous char was part of a variable reference (letter, digit, underscore, or $)
+        const isAfterVarRef = (p >= 48 && p <= 57) || // 0-9
+                              (p >= 65 && p <= 90) || // A-Z
+                              (p >= 97 && p <= 122) || // a-z
+                              p === 95 || // _
+                              p === 36; // $
         // # $ . ( [ { ! = < > + - * / % ? : & | ,
-        if (p===35||p===36||p===46||p===40||p===91||p===123||p===33||p===61||p===60||p===62||p===43||p===45||p===42||p===47||p===37||p===63||p===58||p===38||p===124||p===44) {
+        // Only block if it's a code-leading char AND not after a variable reference
+        if (!isAfterVarRef && (p===35||p===36||p===46||p===40||p===91||p===123||p===33||p===61||p===60||p===62||p===43||p===45||p===42||p===47||p===37||p===63||p===58||p===38||p===124||p===44)) {
           return null;
         }
       }
 
       // scan forward until next '#', '$', '=', newline, or structural characters
+      // Include spaces and tabs in the text (they're part of the template output)
       let i = startOffset;
       while (i < len) {
         const ch = text.charCodeAt(i);
-        // Stop at: # $ = newline , [ ] ( ) { } 
+        // Stop at: # $ = newline [ ] ( ) { }
+        // Note: Don't stop at comma, !, or whitespace since they can be part of text
+        // Comma is handled separately but we want to include spaces after it
         if (ch === 35 || ch === 36 || ch === 61 || ch === 10 || ch === 13 || 
-            ch === 44 || ch === 91 || ch === 93 || ch === 40 || ch === 41 || 
+            ch === 91 || ch === 93 || ch === 40 || ch === 41 || 
             ch === 123 || ch === 125) break;
+        // Stop at comma only if it's not followed by space (likely part of expression)
+        if (ch === 44) { // comma
+          // Check if next char is space - if so, include comma and space in text
+          if (i + 1 < len && text.charCodeAt(i + 1) === 32) {
+            // Include comma and space, then stop
+            i += 2;
+            break;
+          } else {
+            // Comma not followed by space, likely expression context
+            break;
+          }
+        }
         i++;
       }
       
-      // Don't consume spaces before operators
-      if (i > startOffset) {
-        const lastChar = text.charCodeAt(i - 1);
-        if (lastChar === 32) { // space
-          i--;
-        }
-      }
+      // Don't trim trailing spaces - they're part of the template output
       if (i === startOffset) return null;
 
       const image = text.slice(startOffset, i);
@@ -359,10 +376,13 @@ export const TemplateText = createToken({
 });
 
 // Whitespace and text
+// Note: Whitespace is skippable in expression contexts but preserved in text
+// We'll handle it specially - make it skippable for expressions, but TemplateText will capture it
 export const Whitespace = createToken({
   name: 'Whitespace',
   pattern: /[ \t]+/,
-  group: Lexer.SKIPPED,
+  group: Lexer.SKIPPED, // Skip in expression contexts
+  categories: [AnyTextFragment], // But can be part of text
 });
 
 export const Newline = createToken({
@@ -445,14 +465,16 @@ export const allTokens: TokenType[] = [
   Semicolon,
   Hash,
 
+  // Whitespace must come before TemplateText so it can be captured
+  Whitespace,
+
   // Template text must come after all other tokens to avoid conflicts
   TemplateText,
 
   // Identifiers (after keywords)
   Identifier,
 
-  // Whitespace and categories
-  Whitespace,
+  // Newline and categories
   Newline,
   AnyTextFragment,
 ];

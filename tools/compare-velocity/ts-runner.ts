@@ -1,7 +1,8 @@
 /** Apache Velocity: TypeScript Runner | OWNER: vela | STATUS: READY */
 
 import { readFile } from 'fs/promises';
-import { VelocityEngine } from '../../src/engine.js';
+// Use dynamic import to avoid TypeScript path issues
+// import { VelocityEngine } from '../../../dist/engine.js';
 
 export interface TSRunnerOptions {
   templatePath: string;
@@ -17,6 +18,9 @@ export async function runTSVelocity(options: TSRunnerOptions): Promise<string> {
   
   // Parse context from JSON
   const context = JSON.parse(inputJson);
+  
+  // Dynamic import to avoid path resolution issues
+  const { VelocityEngine } = await import('../../../dist/engine.js');
   
   // Create engine and render
   const engine = new VelocityEngine(false);

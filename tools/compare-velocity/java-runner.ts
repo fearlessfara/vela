@@ -13,8 +13,21 @@ export interface JavaRunnerOptions {
   context: Record<string, any>;
 }
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+// Get the directory where the source tools/compare-velocity files are
+// When compiled, this file is in dist/tools/compare-velocity, but jars are in tools/compare-velocity
+function getThisDir(): string {
+  try {
+    const __filename = fileURLToPath(import.meta.url);
+    const compiledDir = dirname(__filename);
+    // If we're in dist/tools/compare-velocity, go up to tools/compare-velocity
+    // Replace the dist/tools part with just tools
+    const sourceDir = compiledDir.replace(/\/dist\/tools\//, '/tools/');
+    return sourceDir;
+  } catch (error) {
+    // Fallback: use process.cwd() and construct path
+    return join(process.cwd(), 'tools', 'compare-velocity');
+  }
+}
 
 /**
  * Runs a Velocity template using the Java reference implementation
@@ -22,19 +35,21 @@ const __dirname = dirname(__filename);
 export async function runJavaVelocity(options: JavaRunnerOptions): Promise<string> {
   const { template, context } = options;
   
-  const jarDir = join(__dirname, 'jars');
-  const runnerClass = join(__dirname, 'VelocityRunner.class');
+  const thisDir = getThisDir();
+  const jarDir = join(thisDir, 'jars');
+  const runnerClass = join(thisDir, 'VelocityRunner.class');
   
   // Check if JARs and compiled class exist
-  if (!existsSync(join(jarDir, 'velocity-engine-core-2.3.jar'))) {
+  const velocityJar = join(jarDir, 'velocity-engine-core-2.3.jar');
+  if (!existsSync(velocityJar)) {
     throw new Error(
-      'Velocity JARs not found. Please run: cd tools/compare-velocity && bash setup-java-runner.sh'
+      `Velocity JARs not found at ${velocityJar}. Please run: cd tools/compare-velocity && bash setup-java-runner.sh`
     );
   }
   
   if (!existsSync(runnerClass)) {
     throw new Error(
-      'VelocityRunner.class not found. Please compile: cd tools/compare-velocity && javac -cp "jars/*" VelocityRunner.java'
+      `VelocityRunner.class not found at ${runnerClass}. Please compile: cd tools/compare-velocity && javac -cp "jars/*" VelocityRunner.java`
     );
   }
   
@@ -46,12 +61,12 @@ export async function runJavaVelocity(options: JavaRunnerOptions): Promise<strin
   // Run Java program
   // Use proper classpath separator for the platform
   const pathSeparator = process.platform === 'win32' ? ';' : ':';
-  const classpath = `jars/*${pathSeparator}${__dirname}`;
+  const classpath = `jars/*${pathSeparator}${thisDir}`;
   const command = `java -cp "${classpath}" VelocityRunner '${escapedTemplate}' '${escapedContext}'`;
   
   try {
     const { stdout, stderr } = await execAsync(command, {
-      cwd: __dirname,
+      cwd: thisDir,
       maxBuffer: 10 * 1024 * 1024, // 10MB buffer
     });
     
