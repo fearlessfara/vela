@@ -176,38 +176,155 @@ export const Semicolon = createToken({
 // Operators
 export const Assign = createToken({
   name: 'Assign',
-  pattern: /=/,
-
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text[offset] !== '=') return null;
+      // Only match = if we're in an expression context
+      // Note: = is special in #set($x = ...) but should still only match in parens
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['='] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
+
+/**
+ * Helper function to determine if we're in an expression context
+ * (inside directive parentheses, ${...} braces, or [...] array literals)
+ *
+ * Expression contexts are:
+ * - Inside ( ) of directives: #set(...), #if(...), #foreach(...)
+ * - Inside ${ } braces
+ * - Inside [ ] array literals
+ *
+ * @param text Full input text
+ * @param offset Current lexer offset
+ * @returns true if in expression context, false if in template text context
+ */
+function isInExpressionContext(text: string, offset: number): boolean {
+  // Count unclosed delimiters by scanning backwards
+  let parenDepth = 0;
+  let braceDepth = 0;
+  let bracketDepth = 0;
+  let inString = false;
+  let stringChar: string | null = null;
+
+  // Scan backwards from current position
+  for (let i = offset - 1; i >= 0; i--) {
+    const ch = text[i];
+
+    // Handle strings - operators inside strings are not expression operators
+    if (ch === '"' || ch === "'") {
+      if (!inString) {
+        inString = true;
+        stringChar = ch;
+      } else if (ch === stringChar && text[i - 1] !== '\\') {
+        inString = false;
+        stringChar = null;
+      }
+      continue;
+    }
+
+    if (inString) continue;
+
+    // Track delimiter depth
+    if (ch === ')') parenDepth++;
+    else if (ch === '(') parenDepth--;
+    else if (ch === '}') braceDepth++;
+    else if (ch === '{') braceDepth--;
+    else if (ch === ']') bracketDepth++;
+    else if (ch === '[') bracketDepth--;
+
+    // If we find an unclosed delimiter, we're in expression context
+    if (parenDepth < 0 || braceDepth < 0 || bracketDepth < 0) {
+      return true;
+    }
+  }
+
+  return false;
+}
 
 export const Plus = createToken({
   name: 'Plus',
-  pattern: /\+/,
-  categories: [AnyTextFragment], // Can be part of text in template context
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text[offset] !== '+') return null;
+      // Only match + if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['+'] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
 
 export const Minus = createToken({
   name: 'Minus',
-  pattern: /-/,
-
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text[offset] !== '-') return null;
+      // Only match - if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['-'] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
 
 export const Star = createToken({
   name: 'Star',
-  pattern: /\*/,
-
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text[offset] !== '*') return null;
+      // Only match * if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['*'] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
 
 export const Slash = createToken({
   name: 'Slash',
-  pattern: /\//,
-
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text[offset] !== '/') return null;
+      // Only match / if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['/'] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
 
 export const Mod = createToken({
   name: 'Mod',
-  pattern: /%/,
-
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text[offset] !== '%') return null;
+      // Only match % if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['%'] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
 
 export const Question = createToken({
@@ -218,56 +335,148 @@ export const Question = createToken({
 
 export const Not = createToken({
   name: 'Not',
-  pattern: /!/,
-  categories: [AnyTextFragment], // Can be part of text in template context
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text[offset] !== '!') return null;
+      // Don't match ! if followed by = (that's part of !=)
+      if (text[offset + 1] === '=') return null;
+      // Only match ! if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['!'] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
 
 export const And = createToken({
   name: 'And',
-  pattern: /&&/,
-
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text.substr(offset, 2) !== '&&') return null;
+      // Only match && if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['&&'] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
 
 export const Or = createToken({
   name: 'Or',
-  pattern: /\|\|/,
-
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text.substr(offset, 2) !== '||') return null;
+      // Only match || if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['||'] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
 
 export const Eq = createToken({
   name: 'Eq',
-  pattern: /==/,
-
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text.substr(offset, 2) !== '==') return null;
+      // Only match == if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['=='] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
 
 export const Ne = createToken({
   name: 'Ne',
-  pattern: /!=/,
-
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text.substr(offset, 2) !== '!=') return null;
+      // Only match != if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['!='] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
 
 export const Lt = createToken({
   name: 'Lt',
-  pattern: /</,
-
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text[offset] !== '<') return null;
+      // Only match < if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['<'] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
 
 export const Le = createToken({
   name: 'Le',
-  pattern: /<=/,
-
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text.substr(offset, 2) !== '<=') return null;
+      // Only match <= if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['<='] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
 
 export const Gt = createToken({
   name: 'Gt',
-  pattern: />/,
-
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text[offset] !== '>') return null;
+      // Only match > if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['>'] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
 
 export const Ge = createToken({
   name: 'Ge',
-  pattern: />=/,
-
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text.substr(offset, 2) !== '>=') return null;
+      // Only match >= if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['>='] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
 
 export const Range = createToken({
@@ -429,9 +638,11 @@ export const TemplateText = createToken({
             break;
           }
         }
-        // Always stop at: # $ = [ ] ( ) { }
+        // Always stop at: # $ [ ] ( ) { }
         // These are all special characters in Velocity and should be their own tokens
-        if (ch === 35 || ch === 36 || ch === 61 ||
+        // Note: = is no longer in this list because it's now context-aware and only
+        // matches in expression contexts. In template text, = is just a regular character.
+        if (ch === 35 || ch === 36 ||
             ch === 91 || ch === 93 || ch === 40 || ch === 41 || ch === 123 || ch === 125) {
           break;
         }
