@@ -111,7 +111,7 @@ function extractPrefixPostfix(segments: Segment[]): Segment[] {
 
     if (isDirective) {
       // Check if there's content before this directive on the same line
-      // This is used later to determine if postfix should be gobbled
+      // This must be done BEFORE prefix extraction, using the previous segment's ORIGINAL value
       // A directive is NOT on a directive-only line if there's content before it on the same line
       // If previous segment ends with newline, the directive is on a new line
       const prevInResult = result[result.length - 1];
@@ -129,22 +129,24 @@ function extractPrefixPostfix(segments: Segment[]): Segment[] {
       const isMacroDirective = segment.type === 'MacroDirective';
       if (!isMacroDirective && prevSegment && prevSegment.type === 'Text') {
         const text = prevSegment.value;
-        // Match trailing whitespace (spaces, tabs, newlines)
-        // Capture indentation before directive: matches whitespace after last newline
-        const prefixMatch = text.match(/(?:^|\n)([ \t]*)$/);
-        if (prefixMatch && prefixMatch[1]) {
-          (segment as any).prefix = prefixMatch[1];
-          // Remove the prefix from the previous Text segment
-          const newValue = text.slice(0, -prefixMatch[1].length);
-          if (newValue.length > 0) {
-            (prevSegment as Text).value = newValue;
-          } else {
-            // Remove empty Text segment
-            result.pop();
+        // Extract prefix based on text content:
+        // 1. If text is whitespace-only (newline + optional spaces/tabs): extract all as prefix
+        // 2. If text has content: only extract indentation (spaces/tabs) after last newline, not the newline itself
+        // The newline stays with content to preserve line structure (e.g., "Numbers:\n" before #foreach)
+        const whitespaceOnlyMatch = text.match(/^([ \t]*\r?\n[ \t]*)$/);
+        if (whitespaceOnlyMatch) {
+          // Text is whitespace-only - extract it all as prefix
+          (segment as any).prefix = text;
+          result.pop();
+        } else if (text.match(/\r?\n$/)) {
+          // Text ends with newline but has content before it
+          // Extract only indentation after the newline, keep newline with content
+          const indentMatch = text.match(/\r?\n([ \t]+)$/);
+          if (indentMatch && indentMatch[1]) {
+            (segment as any).prefix = indentMatch[1];
+            (prevSegment as Text).value = text.slice(0, -indentMatch[1].length);
           }
         }
-        // Do NOT extract newline-only Text segments as prefix
-        // Newlines should be preserved in the output, only indentation (spaces/tabs) is prefix
       }
 
       // Extract postfix from next Text segment if it starts with whitespace/newline
