@@ -492,6 +492,9 @@ function directiveToAst(directive: CstNode): Segment {
   if (directive.children.macroDirective) {
     return macroDirectiveToAst(directive.children.macroDirective[0] as CstNode);
   }
+  if (directive.children.macroInvocation) {
+    return macroInvocationToAst(directive.children.macroInvocation[0] as CstNode);
+  }
   if (directive.children.evaluateDirective) {
     return evaluateDirectiveToAst(directive.children.evaluateDirective[0] as CstNode);
   }
@@ -602,6 +605,15 @@ function macroDirectiveToAst(macroDirective: CstNode): MacroDirective {
     parameters: macroDirective.children.parameters?.map((p: any) => p.image) || [],
     body: macroDirective.children.body?.map(segmentToAst) || [],
     location: getLocation(macroDirective),
+  };
+}
+
+function macroInvocationToAst(macroInvocation: CstNode): any {
+  return {
+    type: 'MacroInvocation',
+    name: (macroInvocation.children.name![0] as any).image,
+    arguments: macroInvocation.children.arguments?.map((arg: any) => expressionToAst(arg)) || [],
+    location: getLocation(macroInvocation),
   };
 }
 

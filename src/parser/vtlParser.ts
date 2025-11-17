@@ -38,6 +38,7 @@ import {
   Ge,
   Question,
   Range,
+  Hash,
   IfDirective,
   ElseIfDirective,
   ElseDirective,
@@ -160,6 +161,15 @@ export class VtlParser extends CstParser {
       {
         GATE: () => {
           const t = this.LA(1).tokenType;
+          // Check if this is a macro invocation: Hash + Identifier + LParen
+          if (t === Hash) {
+            const t2 = this.LA(2)?.tokenType;
+            const t3 = this.LA(3)?.tokenType;
+            // If it's #identifier(, it's a macro invocation, not text
+            if (t2 === Identifier && t3 === LParen) {
+              return false; // Don't parse as text
+            }
+          }
           return !(
             t === DollarRef || t === QuietRef || t === InterpStart ||
             t === IfDirective || t === ElseIfDirective || t === ElseDirective ||
@@ -241,6 +251,8 @@ export class VtlParser extends CstParser {
       { ALT: () => this.SUBRULE(this.evaluateDirective) },
       { ALT: () => this.SUBRULE(this.parseDirective) },
       { ALT: () => this.SUBRULE(this.includeDirective) },
+      // Macro invocation: #macroName(args) - must come last as fallback
+      { ALT: () => this.SUBRULE(this.macroInvocation) },
     ]);
   });
 
@@ -447,26 +459,32 @@ export class VtlParser extends CstParser {
     this.OPTION(() => this.CONSUME(Whitespace, { LABEL: 'postfix' }));
   });
 
-  // #macro directive (stub)
+  // #macro directive: #macro(name $param1 $param2)
   macroDirective = this.RULE('macroDirective', () => {
     this.CONSUME(MacroDirective, { LABEL: 'macroKeyword' });
-    this.CONSUME1(Identifier, { LABEL: 'name' });
-    this.OPTION1(() => {
-      // Optional whitespace before (
-      this.MANY1(() => this.OR1([
-        { ALT: () => this.CONSUME(Whitespace) },
-        { ALT: () => this.CONSUME(Newline) },
+    // Optional whitespace before (
+    this.MANY1(() => this.OR1([
+      { ALT: () => this.CONSUME(Whitespace) },
+      { ALT: () => this.CONSUME(Newline) },
+    ]));
+    this.CONSUME(LParen);
+    // Macro name is INSIDE parentheses
+    this.CONSUME(Identifier, { LABEL: 'name' });
+    // Optional parameters after name
+    this.MANY2(() => {
+      // Optional whitespace before parameter
+      this.MANY4(() => this.OR2([
+        { ALT: () => this.CONSUME1(Whitespace) },
+        { ALT: () => this.CONSUME1(Newline) },
       ]));
-      this.CONSUME(LParen);
-      this.OPTION2(() => {
-        this.CONSUME2(Identifier, { LABEL: 'parameters' });
-        this.MANY2(() => {
-          this.CONSUME(Comma);
-          this.CONSUME3(Identifier, { LABEL: 'parameters' });
-        });
-      });
-      this.CONSUME(RParen);
+      this.CONSUME(DollarRef, { LABEL: 'parameters' });
     });
+    // Optional whitespace before )
+    this.MANY5(() => this.OR3([
+      { ALT: () => this.CONSUME2(Whitespace) },
+      { ALT: () => this.CONSUME2(Newline) },
+    ]));
+    this.CONSUME(RParen);
     this.MANY3({
       GATE: () => {
         const t = this.LA(1).tokenType;
@@ -479,6 +497,47 @@ export class VtlParser extends CstParser {
     this.CONSUME(EndDirective, { LABEL: 'endKeyword' });
     // Capture optional whitespace after #end as postfix
     this.OPTION3(() => this.CONSUME4(Whitespace, { LABEL: 'postfix' }));
+  });
+
+  // Macro invocation: #macroName(args)
+  macroInvocation = this.RULE('macroInvocation', () => {
+    this.CONSUME(Hash, { LABEL: 'hash' });
+    this.CONSUME(Identifier, { LABEL: 'name' });
+    // Optional whitespace before (
+    this.MANY1(() => this.OR1([
+      { ALT: () => this.CONSUME(Whitespace) },
+      { ALT: () => this.CONSUME(Newline) },
+    ]));
+    this.CONSUME(LParen);
+    // Optional whitespace after (
+    this.MANY2(() => this.OR2([
+      { ALT: () => this.CONSUME1(Whitespace) },
+      { ALT: () => this.CONSUME1(Newline) },
+    ]));
+    // Optional argument list
+    this.OPTION(() => {
+      this.SUBRULE1(this.expression, { LABEL: 'arguments' });
+      this.MANY3(() => {
+        // Optional whitespace before comma
+        this.MANY4(() => this.OR3([
+          { ALT: () => this.CONSUME2(Whitespace) },
+          { ALT: () => this.CONSUME2(Newline) },
+        ]));
+        this.CONSUME(Comma);
+        // Optional whitespace after comma
+        this.MANY5(() => this.OR4([
+          { ALT: () => this.CONSUME3(Whitespace) },
+          { ALT: () => this.CONSUME3(Newline) },
+        ]));
+        this.SUBRULE2(this.expression, { LABEL: 'arguments' });
+      });
+    });
+    // Optional whitespace before )
+    this.MANY6(() => this.OR5([
+      { ALT: () => this.CONSUME4(Whitespace) },
+      { ALT: () => this.CONSUME4(Newline) },
+    ]));
+    this.CONSUME(RParen);
   });
 
   // #evaluate directive
