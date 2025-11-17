@@ -69,6 +69,7 @@ export const NumberLiteral = createToken({
 export const BooleanLiteral = createToken({
   name: 'BooleanLiteral',
   pattern: /\b(true|false)\b/,
+  categories: [AnyTextFragment], // Can be part of text when not in expression context
 });
 
 export const NullLiteral = createToken({
@@ -478,13 +479,12 @@ export const TemplateText = createToken({
 });
 
 // Whitespace and text
-// Note: Whitespace is skippable in expression contexts but preserved in text
-// We'll handle it specially - make it skippable for expressions, but TemplateText will capture it
+// Note: Whitespace is treated as text in template contexts
+// In Java, WHITESPACE is a real token that can be captured for space gobbling
 export const Whitespace = createToken({
   name: 'Whitespace',
   pattern: /[ \t]+/,
-  group: Lexer.SKIPPED, // Skip in expression contexts
-  categories: [AnyTextFragment], // But can be part of text
+  categories: [AnyTextFragment], // Treat as text so it's preserved
 });
 
 // Newlines: treat as text fragments so they're included in template output
@@ -567,11 +567,12 @@ export const allTokens: TokenType[] = [
   Semicolon,
   Hash,
 
-  // Whitespace must come before TemplateText so it can be captured
-  Whitespace,
-
   // Template text must come after all other tokens to avoid conflicts
+  // TemplateText has higher priority than Whitespace so it absorbs leading whitespace in text contexts
   TemplateText,
+
+  // Whitespace comes after TemplateText - only matches in expression contexts where TemplateText doesn't apply
+  Whitespace,
 
   // Identifiers (after keywords)
   Identifier,

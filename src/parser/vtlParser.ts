@@ -52,6 +52,7 @@ import {
   EndDirective,
   AnyTextFragment,
   Newline,
+  Whitespace,
 } from '../lexer/tokens.js';
 
 export class VtlParser extends CstParser {
@@ -257,6 +258,8 @@ export class VtlParser extends CstParser {
       this.SUBRULE(this.elseDirective, { LABEL: 'elseBranch' });
     });
     this.CONSUME(EndDirective, { LABEL: 'endKeyword' });
+    // Capture optional whitespace after #end as postfix
+    this.OPTION2(() => this.CONSUME1(Whitespace, { LABEL: 'postfix' }));
   });
 
   // #elseif directive
@@ -294,10 +297,32 @@ export class VtlParser extends CstParser {
   setDirective = this.RULE('setDirective', () => {
     this.CONSUME(SetDirective, { LABEL: 'setKeyword' });
     this.CONSUME(LParen);
+    // Optional whitespace after (
+    this.MANY1(() => this.OR1([
+      { ALT: () => this.CONSUME1(Whitespace) },
+      { ALT: () => this.CONSUME1(Newline) },
+    ]));
     this.CONSUME(DollarRef, { LABEL: 'variable' });
+    // Optional whitespace after variable
+    this.MANY2(() => this.OR2([
+      { ALT: () => this.CONSUME2(Whitespace) },
+      { ALT: () => this.CONSUME2(Newline) },
+    ]));
     this.CONSUME(Assign);
+    // Optional whitespace after =
+    this.MANY3(() => this.OR3([
+      { ALT: () => this.CONSUME3(Whitespace) },
+      { ALT: () => this.CONSUME3(Newline) },
+    ]));
     this.SUBRULE(this.expression, { LABEL: 'value' });
+    // Optional whitespace before )
+    this.MANY4(() => this.OR4([
+      { ALT: () => this.CONSUME4(Whitespace) },
+      { ALT: () => this.CONSUME4(Newline) },
+    ]));
     this.CONSUME(RParen);
+    // Capture optional whitespace after directive as postfix
+    this.OPTION1(() => this.CONSUME5(Whitespace, { LABEL: 'postfix' }));
   });
 
   // #foreach directive
@@ -353,11 +378,15 @@ export class VtlParser extends CstParser {
       },
     });
     this.CONSUME(EndDirective, { LABEL: 'endKeyword' });
+    // Capture optional whitespace after #end as postfix
+    this.OPTION1(() => this.CONSUME1(Whitespace, { LABEL: 'postfix' }));
   });
 
   // #break directive
   breakDirective = this.RULE('breakDirective', () => {
     this.CONSUME(BreakDirective, { LABEL: 'breakKeyword' });
+    // Capture optional whitespace after directive as postfix
+    this.OPTION(() => this.CONSUME(Whitespace, { LABEL: 'postfix' }));
   });
 
   // Else body segments for foreach
@@ -376,6 +405,8 @@ export class VtlParser extends CstParser {
   // #stop directive
   stopDirective = this.RULE('stopDirective', () => {
     this.CONSUME(StopDirective, { LABEL: 'stopKeyword' });
+    // Capture optional whitespace after directive as postfix
+    this.OPTION(() => this.CONSUME(Whitespace, { LABEL: 'postfix' }));
   });
 
   // #macro directive (stub)
@@ -403,6 +434,8 @@ export class VtlParser extends CstParser {
       },
     });
     this.CONSUME(EndDirective, { LABEL: 'endKeyword' });
+    // Capture optional whitespace after #end as postfix
+    this.OPTION3(() => this.CONSUME4(Whitespace, { LABEL: 'postfix' }));
   });
 
   // #evaluate directive
@@ -411,6 +444,8 @@ export class VtlParser extends CstParser {
     this.CONSUME(LParen);
     this.SUBRULE(this.expression, { LABEL: 'expression' });
     this.CONSUME(RParen);
+    // Capture optional whitespace after directive as postfix
+    this.OPTION(() => this.CONSUME1(Whitespace, { LABEL: 'postfix' }));
   });
 
   // #parse directive
@@ -419,6 +454,8 @@ export class VtlParser extends CstParser {
     this.CONSUME(LParen);
     this.SUBRULE(this.expression, { LABEL: 'expression' });
     this.CONSUME(RParen);
+    // Capture optional whitespace after directive as postfix
+    this.OPTION(() => this.CONSUME1(Whitespace, { LABEL: 'postfix' }));
   });
 
   // #include directive
@@ -427,6 +464,8 @@ export class VtlParser extends CstParser {
     this.CONSUME(LParen);
     this.SUBRULE(this.expression, { LABEL: 'expression' });
     this.CONSUME(RParen);
+    // Capture optional whitespace after directive as postfix
+    this.OPTION(() => this.CONSUME1(Whitespace, { LABEL: 'postfix' }));
   });
 
   // Expression parsing with proper precedence
@@ -438,13 +477,29 @@ export class VtlParser extends CstParser {
   conditional = this.RULE('conditional', () => {
     this.SUBRULE(this.logicalOr);
     this.OPTION(() => {
-      this.MANY1(() => this.CONSUME(Newline)); // Allow newlines before ?
+      // Allow whitespace before ?
+      this.MANY1(() => this.OR1([
+        { ALT: () => this.CONSUME1(Whitespace) },
+        { ALT: () => this.CONSUME1(Newline) },
+      ]));
       this.CONSUME(Question);
-      this.MANY2(() => this.CONSUME2(Newline)); // Allow newlines after ?
+      // Allow whitespace after ?
+      this.MANY2(() => this.OR2([
+        { ALT: () => this.CONSUME2(Whitespace) },
+        { ALT: () => this.CONSUME2(Newline) },
+      ]));
       this.SUBRULE1(this.expression);
-      this.MANY3(() => this.CONSUME3(Newline)); // Allow newlines before :
+      // Allow whitespace before :
+      this.MANY3(() => this.OR3([
+        { ALT: () => this.CONSUME3(Whitespace) },
+        { ALT: () => this.CONSUME3(Newline) },
+      ]));
       this.CONSUME(Colon);
-      this.MANY4(() => this.CONSUME4(Newline)); // Allow newlines after :
+      // Allow whitespace after :
+      this.MANY4(() => this.OR4([
+        { ALT: () => this.CONSUME4(Whitespace) },
+        { ALT: () => this.CONSUME4(Newline) },
+      ]));
       this.SUBRULE2(this.expression);
     });
   });
@@ -452,9 +507,17 @@ export class VtlParser extends CstParser {
   logicalOr = this.RULE('logicalOr', () => {
     this.SUBRULE(this.logicalAnd);
     this.MANY1(() => {
-      this.MANY2(() => this.CONSUME(Newline)); // Allow newlines before operator
+      // Allow whitespace before operator
+      this.MANY2(() => this.OR1([
+        { ALT: () => this.CONSUME1(Whitespace) },
+        { ALT: () => this.CONSUME1(Newline) },
+      ]));
       this.CONSUME(Or);
-      this.MANY3(() => this.CONSUME2(Newline)); // Allow newlines after operator
+      // Allow whitespace after operator
+      this.MANY3(() => this.OR2([
+        { ALT: () => this.CONSUME2(Whitespace) },
+        { ALT: () => this.CONSUME2(Newline) },
+      ]));
       this.SUBRULE2(this.logicalAnd);
     });
   });
@@ -462,9 +525,17 @@ export class VtlParser extends CstParser {
   logicalAnd = this.RULE('logicalAnd', () => {
     this.SUBRULE(this.equality);
     this.MANY1(() => {
-      this.MANY2(() => this.CONSUME(Newline)); // Allow newlines before operator
+      // Allow whitespace before operator
+      this.MANY2(() => this.OR1([
+        { ALT: () => this.CONSUME1(Whitespace) },
+        { ALT: () => this.CONSUME1(Newline) },
+      ]));
       this.CONSUME(And);
-      this.MANY3(() => this.CONSUME2(Newline)); // Allow newlines after operator
+      // Allow whitespace after operator
+      this.MANY3(() => this.OR2([
+        { ALT: () => this.CONSUME2(Whitespace) },
+        { ALT: () => this.CONSUME2(Newline) },
+      ]));
       this.SUBRULE2(this.equality);
     });
   });
@@ -472,12 +543,20 @@ export class VtlParser extends CstParser {
   equality = this.RULE('equality', () => {
     this.SUBRULE(this.relational);
     this.MANY1(() => {
-      this.MANY2(() => this.CONSUME(Newline)); // Allow newlines before operator
-      this.OR([
+      // Allow whitespace before operator
+      this.MANY2(() => this.OR1([
+        { ALT: () => this.CONSUME1(Whitespace) },
+        { ALT: () => this.CONSUME1(Newline) },
+      ]));
+      this.OR2([
         { ALT: () => this.CONSUME(Eq) },
         { ALT: () => this.CONSUME(Ne) },
       ]);
-      this.MANY3(() => this.CONSUME2(Newline)); // Allow newlines after operator
+      // Allow whitespace after operator
+      this.MANY3(() => this.OR3([
+        { ALT: () => this.CONSUME2(Whitespace) },
+        { ALT: () => this.CONSUME2(Newline) },
+      ]));
       this.SUBRULE2(this.relational);
     });
   });
@@ -485,14 +564,22 @@ export class VtlParser extends CstParser {
   relational = this.RULE('relational', () => {
     this.SUBRULE(this.additive);
     this.MANY1(() => {
-      this.MANY2(() => this.CONSUME(Newline)); // Allow newlines before operator
-      this.OR([
+      // Allow whitespace before operator
+      this.MANY2(() => this.OR1([
+        { ALT: () => this.CONSUME1(Whitespace) },
+        { ALT: () => this.CONSUME1(Newline) },
+      ]));
+      this.OR2([
         { ALT: () => this.CONSUME(Lt) },
         { ALT: () => this.CONSUME(Le) },
         { ALT: () => this.CONSUME(Gt) },
         { ALT: () => this.CONSUME(Ge) },
       ]);
-      this.MANY3(() => this.CONSUME2(Newline)); // Allow newlines after operator
+      // Allow whitespace after operator
+      this.MANY3(() => this.OR3([
+        { ALT: () => this.CONSUME2(Whitespace) },
+        { ALT: () => this.CONSUME2(Newline) },
+      ]));
       this.SUBRULE2(this.additive);
     });
   });
@@ -500,12 +587,20 @@ export class VtlParser extends CstParser {
   additive = this.RULE('additive', () => {
     this.SUBRULE(this.multiplicative);
     this.MANY1(() => {
-      this.MANY2(() => this.CONSUME(Newline)); // Allow newlines before operator
-      this.OR([
+      // Allow whitespace before operator
+      this.MANY2(() => this.OR1([
+        { ALT: () => this.CONSUME1(Whitespace) },
+        { ALT: () => this.CONSUME1(Newline) },
+      ]));
+      this.OR2([
         { ALT: () => this.CONSUME(Plus) },
         { ALT: () => this.CONSUME(Minus) },
       ]);
-      this.MANY3(() => this.CONSUME2(Newline)); // Allow newlines after operator
+      // Allow whitespace after operator
+      this.MANY3(() => this.OR3([
+        { ALT: () => this.CONSUME2(Whitespace) },
+        { ALT: () => this.CONSUME2(Newline) },
+      ]));
       this.SUBRULE2(this.multiplicative);
     });
   });
@@ -513,13 +608,21 @@ export class VtlParser extends CstParser {
   multiplicative = this.RULE('multiplicative', () => {
     this.SUBRULE(this.unary);
     this.MANY1(() => {
-      this.MANY2(() => this.CONSUME(Newline)); // Allow newlines before operator
-      this.OR([
+      // Allow whitespace before operator
+      this.MANY2(() => this.OR1([
+        { ALT: () => this.CONSUME1(Whitespace) },
+        { ALT: () => this.CONSUME1(Newline) },
+      ]));
+      this.OR2([
         { ALT: () => this.CONSUME(Star) },
         { ALT: () => this.CONSUME(Slash) },
         { ALT: () => this.CONSUME(Mod) },
       ]);
-      this.MANY3(() => this.CONSUME2(Newline)); // Allow newlines after operator
+      // Allow whitespace after operator
+      this.MANY3(() => this.OR3([
+        { ALT: () => this.CONSUME2(Whitespace) },
+        { ALT: () => this.CONSUME2(Newline) },
+      ]));
       this.SUBRULE2(this.unary);
     });
   });
@@ -546,7 +649,7 @@ export class VtlParser extends CstParser {
   });
 
   primaryBase = this.RULE('primaryBase', () => {
-    this.OR([
+    this.OR1([
       { ALT: () => this.SUBRULE(this.literal) },
       { ALT: () => this.SUBRULE(this.variableReference) },
       { ALT: () => this.SUBRULE(this.objectLiteral) },
@@ -554,7 +657,15 @@ export class VtlParser extends CstParser {
       {
         ALT: () => {
           this.CONSUME(LParen);
+          this.MANY1(() => this.OR2([
+            { ALT: () => this.CONSUME1(Whitespace) },
+            { ALT: () => this.CONSUME1(Newline) },
+          ]));
           this.SUBRULE(this.expression);
+          this.MANY2(() => this.OR3([
+            { ALT: () => this.CONSUME2(Whitespace) },
+            { ALT: () => this.CONSUME2(Newline) },
+          ]));
           this.CONSUME(RParen);
         },
       },
@@ -563,25 +674,49 @@ export class VtlParser extends CstParser {
 
   // Suffix operations: member access, function calls, array access
   suffix = this.RULE('suffix', () => {
-    this.OR([
+    this.OR1([
       { ALT: () => { this.CONSUME(Dot); this.CONSUME(Identifier, { LABEL: 'prop' }); } },
       { ALT: () => {
           this.CONSUME(LParen);
-          this.OPTION(() => { 
+          this.MANY1(() => this.OR2([
+            { ALT: () => this.CONSUME1(Whitespace) },
+            { ALT: () => this.CONSUME1(Newline) },
+          ]));
+          this.OPTION(() => {
             this.SUBRULE(this.expression, { LABEL: 'args' });
-            this.MANY1(() => { 
+            this.MANY2(() => {
+              this.MANY3(() => this.OR3([
+                { ALT: () => this.CONSUME2(Whitespace) },
+                { ALT: () => this.CONSUME2(Newline) },
+              ]));
               this.CONSUME(Comma);
-              this.SUBRULE2(this.expression, { LABEL: 'args' }); 
+              this.MANY4(() => this.OR4([
+                { ALT: () => this.CONSUME3(Whitespace) },
+                { ALT: () => this.CONSUME3(Newline) },
+              ]));
+              this.SUBRULE2(this.expression, { LABEL: 'args' });
             });
           });
+          this.MANY5(() => this.OR5([
+            { ALT: () => this.CONSUME4(Whitespace) },
+            { ALT: () => this.CONSUME4(Newline) },
+          ]));
           this.CONSUME(RParen);
         }
       },
-      { ALT: () => { 
+      { ALT: () => {
           this.CONSUME(LBracket);
+          this.MANY6(() => this.OR6([
+            { ALT: () => this.CONSUME5(Whitespace) },
+            { ALT: () => this.CONSUME5(Newline) },
+          ]));
           this.SUBRULE3(this.expression, { LABEL: 'index' });
-          this.CONSUME(RBracket); 
-        } 
+          this.MANY7(() => this.OR7([
+            { ALT: () => this.CONSUME6(Whitespace) },
+            { ALT: () => this.CONSUME6(Newline) },
+          ]));
+          this.CONSUME(RBracket);
+        }
       },
     ]);
   });

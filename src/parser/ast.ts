@@ -15,6 +15,11 @@ export interface SourceLocation {
 export interface BaseNode {
   type: string;
   location?: SourceLocation;
+  // Whitespace handling for space gobbling modes (matching Java implementation)
+  // prefix: whitespace/indentation BEFORE the directive
+  // postfix: whitespace/newline AFTER the directive
+  prefix?: string;
+  postfix?: string;
 }
 
 // Template structure
@@ -26,6 +31,7 @@ export interface Template extends BaseNode {
 export type Segment = Text | Interpolation | VariableReference | Directive;
 
 // Text content
+// Note: Text nodes don't use prefix/postfix - they represent literal content
 export interface Text extends BaseNode {
   type: 'Text';
   value: string;

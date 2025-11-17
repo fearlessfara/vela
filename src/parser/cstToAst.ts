@@ -31,7 +31,9 @@ import {
   SourceLocation,
 } from './ast.js';
 
-export function cstToAst(cst: CstNode): Template {
+export type SpaceGobblingMode = 'none' | 'bc' | 'lines' | 'structured';
+
+export function cstToAst(cst: CstNode, spaceGobbling: SpaceGobblingMode = 'lines'): Template {
   // Handle case where template is a single expression
   if (cst.children.expression) {
     return {
@@ -43,7 +45,7 @@ export function cstToAst(cst: CstNode): Template {
       }],
     };
   }
-  
+
   // Handle case where template is an object literal
   if (cst.children.objectLiteral) {
     return {
@@ -55,7 +57,7 @@ export function cstToAst(cst: CstNode): Template {
       }],
     };
   }
-  
+
   // Handle case where template is an array literal
   if (cst.children.arrayLiteral) {
     return {
@@ -67,92 +69,220 @@ export function cstToAst(cst: CstNode): Template {
       }],
     };
   }
-  
+
   const segments = cst.children.segment?.map(segmentToAst) || [];
-  
-  // Apply space gobbling (STRUCTURED mode)
-  // Rule: After block directives that end on their own line, consume the trailing newline
+
+  // CRITICAL: Extract prefix/postfix from adjacent Text segments BEFORE space gobbling
+  // This matches Java Parser.jjt behavior (lines 1790-2040)
+  const segmentsWithWhitespace = extractPrefixPostfix(segments);
+
+  // Apply space gobbling based on mode
   return {
     type: 'Template',
-    segments: applySpaceGobbling(segments),
+    segments: applySpaceGobbling(segmentsWithWhitespace, spaceGobbling),
   };
 }
 
 /**
- * Apply space gobbling rules (STRUCTURED mode)
- * After block directives, consume trailing newlines
- * Also removes leading/trailing newlines from directive bodies
+ * Extract whitespace from adjacent Text segments and attach as prefix/postfix to directives.
+ * This implements the Java Parser.jjt behavior (lines 1790-2040) where whitespace around
+ * directives is captured during parsing and stored on the AST nodes.
+ *
+ * Algorithm:
+ * 1. Iterate through segments
+ * 2. For each directive, check if previous/next segments are Text with only whitespace
+ * 3. Extract that whitespace as prefix/postfix
+ * 4. Remove or trim the Text segments accordingly
+ *
+ * Reference: Java ASTDirective.java:62-63, ASTIfStatement.java:46-47
  */
-function applySpaceGobbling(segments: Segment[]): Segment[] {
-  // First, process directive bodies to remove leading newlines
+function extractPrefixPostfix(segments: Segment[]): Segment[] {
+  const result: Segment[] = [];
+
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i];
+    if (!segment) continue; // Safety check
+
+    const prevSegment = i > 0 ? segments[i - 1] : null;
+    const nextSegment = i < segments.length - 1 ? segments[i + 1] : null;
+
+    // Check if this is a directive (not interpolation or text)
+    const isDirective = segment.type !== 'Text' && segment.type !== 'Interpolation' &&
+                        segment.type !== 'VariableReference';
+
+    if (isDirective) {
+      // Extract prefix from previous Text segment if it ends with whitespace
+      if (prevSegment && prevSegment.type === 'Text') {
+        const text = prevSegment.value;
+        // Match trailing whitespace (spaces, tabs, newlines)
+        // Capture indentation before directive: matches whitespace after last newline
+        const prefixMatch = text.match(/(?:^|\n)([ \t]*)$/);
+        if (prefixMatch && prefixMatch[1]) {
+          (segment as any).prefix = prefixMatch[1];
+          // Remove the prefix from the previous Text segment
+          const newValue = text.slice(0, -prefixMatch[1].length);
+          if (newValue.length > 0) {
+            (prevSegment as Text).value = newValue;
+          } else {
+            // Remove empty Text segment
+            result.pop();
+          }
+        }
+        // Also check if entire previous segment is just a newline (for prefix capture)
+        else if (text.match(/^\r?\n$/)) {
+          (segment as any).prefix = text;
+          result.pop(); // Remove the newline Text segment
+        }
+      }
+
+      // Extract postfix from next Text segment if it starts with whitespace/newline
+      if (nextSegment && nextSegment.type === 'Text') {
+        const text = nextSegment.value;
+        // Match leading whitespace + newline (this is what gets gobbled)
+        // Java Parser.jjt line 1932: ( [ ( t = <WHITESPACE> ) ] ( u = <NEWLINE> ) )
+        // Only extract if there's a newline - whitespace alone is NOT postfix
+        const postfixMatch = text.match(/^([ \t]*\r?\n)/);
+        if (postfixMatch && postfixMatch[1]) {
+          (segment as any).postfix = postfixMatch[1];
+          // Remove the postfix from the next Text segment
+          const newValue = text.slice(postfixMatch[1].length);
+          (nextSegment as Text).value = newValue;
+          // Don't add it yet - it will be added when we reach it in the loop
+        }
+        // NOTE: We do NOT extract trailing whitespace without a newline
+        // Example: "#set($x = 1) text" - the space before "text" is NOT postfix
+      }
+
+      result.push(segment);
+    } else {
+      // Not a directive - just add it (unless it was already removed as prefix/postfix)
+      if (segment.type === 'Text' && (segment as Text).value.length > 0) {
+        result.push(segment);
+      } else if (segment.type !== 'Text') {
+        result.push(segment);
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Apply space gobbling rules recursively based on mode
+ * Modes:
+ * - none: No space gobbling at all
+ * - bc: Backward compatibility - only gobbles for directives with parentheses
+ * - lines: Line directives gobble trailing newlines when on their own line
+ * - structured: Advanced gobbling for structured templates
+ */
+function applySpaceGobbling(segments: Segment[], mode: SpaceGobblingMode): Segment[] {
+  // If mode is 'none', return segments as-is
+  if (mode === 'none') {
+    return segments;
+  }
+  // First, recursively process directive bodies to apply space gobbling within them
   const processedSegments = segments.map(segment => {
     if (segment.type === 'IfDirective') {
       const processed: IfDirective = {
         ...segment,
-        thenBody: stripLeadingNewline(segment.thenBody),
+        thenBody: stripLeadingNewline(applySpaceGobbling(segment.thenBody, mode)), // Recursive!
         elseIfBranches: segment.elseIfBranches.map(branch => ({
           ...branch,
-          body: stripLeadingNewline(branch.body),
+          body: stripLeadingNewline(applySpaceGobbling(branch.body, mode)), // Recursive!
         })),
       };
       if (segment.elseBody) {
-        processed.elseBody = stripLeadingNewline(segment.elseBody);
+        processed.elseBody = stripLeadingNewline(applySpaceGobbling(segment.elseBody, mode)); // Recursive!
       }
       return processed;
     } else if (segment.type === 'ForEachDirective') {
       const processed: ForEachDirective = {
         ...segment,
-        body: stripLeadingNewline(segment.body),
+        body: stripLeadingNewline(applySpaceGobbling(segment.body, mode)), // Recursive!
       };
       if (segment.elseBody) {
-        processed.elseBody = stripLeadingNewline(segment.elseBody);
+        processed.elseBody = stripLeadingNewline(applySpaceGobbling(segment.elseBody, mode)); // Recursive!
       }
       return processed;
     } else if (segment.type === 'MacroDirective') {
       return {
         ...segment,
-        body: stripLeadingNewline(segment.body),
+        body: stripLeadingNewline(applySpaceGobbling(segment.body, mode)), // Recursive!
       } as MacroDirective;
     }
     return segment;
   });
   
   // Then, process top-level segments to remove trailing newlines after directives
+  // AND remove leading whitespace before directives (space gobbling in "lines" mode)
   const result: Segment[] = [];
   let lastWasDirectiveThatGobbled = false; // Track if last directive gobbled a newline
-  
+
   for (let i = 0; i < processedSegments.length; i++) {
     const segment = processedSegments[i];
     if (!segment) continue;
-    
+
     const nextSegment = processedSegments[i + 1];
-    
+
     // Check if current segment is a block directive
-    const isBlockDirective = 
+    const isBlockDirective =
       segment.type === 'IfDirective' ||
       segment.type === 'ForEachDirective' ||
       segment.type === 'MacroDirective';
-    
+
     // Check if current segment is a line directive that gobbles trailing newlines
-    // Per Java Parser.jjt line 1931: Include and Parse directives gobble newlines
+    // Per Java Parser.jjt line 1931: In "lines" mode, line directives gobble trailing newlines
+    // Line directives: #set, #evaluate, #parse, #include, #break, #stop
     const isLineDirectiveWithGobbling =
+      segment.type === 'SetDirective' ||
       segment.type === 'EvaluateDirective' ||
       segment.type === 'ParseDirective' ||
-      segment.type === 'IncludeDirective';
-    
+      segment.type === 'IncludeDirective' ||
+      segment.type === 'BreakDirective' ||
+      segment.type === 'StopDirective';
+
+    const isDirective = isBlockDirective || isLineDirectiveWithGobbling;
+
     // Check if prev segment ended with newline (or is start of template)
     // Also check if previous directive gobbled a newline (meaning current directive starts on new line)
     const prevSegment = result[result.length - 1];
-    const startsOnNewLine = !prevSegment || 
+    const prevEndsWithNewline = !prevSegment ||
       (prevSegment.type === 'Text' && prevSegment.value.endsWith('\n')) ||
       lastWasDirectiveThatGobbled;
-    
+
+    // LEADING WHITESPACE GOBBLING:
+    // If this is NOT a directive but previous segment ended with newline and next segment is a directive,
+    // check if current segment is text that is only whitespace before the directive
+    // In "lines" mode, whitespace-only lines before directives are gobbled
+    const nextIsDirective = nextSegment && (
+      nextSegment.type === 'IfDirective' ||
+      nextSegment.type === 'ForEachDirective' ||
+      nextSegment.type === 'MacroDirective' ||
+      nextSegment.type === 'SetDirective' ||
+      nextSegment.type === 'EvaluateDirective' ||
+      nextSegment.type === 'ParseDirective' ||
+      nextSegment.type === 'IncludeDirective' ||
+      nextSegment.type === 'BreakDirective' ||
+      nextSegment.type === 'StopDirective'
+    );
+
+    if (segment.type === 'Text' && prevEndsWithNewline && nextIsDirective) {
+      // This text segment might be whitespace before a directive
+      // Check if it's only whitespace (spaces/tabs, no content)
+      const text = segment.value;
+      if (/^[ \t]+$/.test(text)) {
+        // This is whitespace-only, skip it (gobble it)
+        continue;
+      }
+    }
+
     result.push(segment);
     lastWasDirectiveThatGobbled = false; // Reset for this iteration
-    
+
+    // TRAILING NEWLINE GOBBLING:
     // If block directive starts on new line, gobble trailing newline from next text segment
     // Also applies to certain line directives (#evaluate, #parse, #include)
-    if ((isBlockDirective || isLineDirectiveWithGobbling) && startsOnNewLine && nextSegment?.type === 'Text') {
+    if (isDirective && prevEndsWithNewline && nextSegment?.type === 'Text') {
       const text = nextSegment.value;
       if (text.startsWith('\n')) {
         // Remove the leading newline
@@ -169,7 +299,7 @@ function applySpaceGobbling(segments: Segment[]): Segment[] {
       }
     }
   }
-  
+
   return result;
 }
 
@@ -364,6 +494,7 @@ function elseIfBranchToAst(elseIf: CstNode): ElseIfBranch {
 function setDirectiveToAst(setDirective: CstNode): SetDirective {
   const raw = (setDirective.children.variable![0] as any).image as string;
   const name = raw.startsWith('$!') ? raw.slice(2) : raw.startsWith('$') ? raw.slice(1) : raw;
+
   return {
     type: 'SetDirective',
     variable: name,
@@ -389,7 +520,7 @@ function forEachDirectiveToAst(forEachDirective: CstNode): ForEachDirective {
       result.elseBody = elseBodyNode.children.elseBodySegment.map(segmentToAst);
     }
   }
-  
+
   return result;
 }
 
