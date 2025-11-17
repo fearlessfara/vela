@@ -1014,11 +1014,12 @@ export const allTokens: TokenType[] = [
   Semicolon,
   Hash,
 
-  // Whitespace must come before TemplateText to ensure proper tokenization
-  // This allows directives to have spaces between keywords and parentheses
+  // Whitespace and Newline must come before TemplateText to ensure proper tokenization
+  // This allows directives to have spaces and newlines between keywords and parentheses
   Whitespace,
+  Newline,
 
-  // Template text must come after whitespace but before other text-like tokens
+  // Template text must come after whitespace/newline but before other text-like tokens
   TemplateText,
 
   // Identifiers (after keywords)
@@ -1028,8 +1029,7 @@ export const allTokens: TokenType[] = [
   // It will still match in directive/expression contexts where TemplateText doesn't apply
   InKeyword,
 
-  // Newline and categories
-  Newline,
+  // Categories
   AnyTextFragment,
 ];
 

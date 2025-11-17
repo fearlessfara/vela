@@ -669,6 +669,25 @@ export class VtlEvaluator {
       }
     }
 
+    // Velocity-specific methods for plain objects (Java Map compatibility)
+    if (object !== null && typeof object === 'object' && !Array.isArray(object)) {
+      if (member.property === 'entrySet') {
+        return () => Object.entries(object).map(([key, value]) => ({ key, value }));
+      }
+      if (member.property === 'keySet') {
+        return () => Object.keys(object);
+      }
+      if (member.property === 'values') {
+        return () => Object.values(object);
+      }
+      if (member.property === 'size') {
+        return () => Object.keys(object).length;
+      }
+      if (member.property === 'isEmpty') {
+        return () => Object.keys(object).length === 0;
+      }
+    }
+
     // JavaScript automatically boxes primitives when accessing properties
     // So we can access properties/methods on strings, numbers, etc.
     const value = (object as any)[member.property];
