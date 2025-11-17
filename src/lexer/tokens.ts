@@ -544,6 +544,14 @@ export const MacroDirective = createToken({
   pattern: /#macro\b/,
 });
 
+// Macro invocation: #macroName (must come after directive keywords to avoid conflicts)
+export const MacroInvocationStart = createToken({
+  name: 'MacroInvocationStart',
+  pattern: /#[a-zA-Z_][a-zA-Z0-9_]*/,
+  // This will match #<identifier>, but directive keywords like #if, #macro will match first
+  // because they are defined earlier in the token list
+});
+
 export const EvaluateDirective = createToken({
   name: 'EvaluateDirective',
   pattern: /#evaluate\b/,
@@ -725,6 +733,9 @@ export const allTokens: TokenType[] = [
   ParseDirective,
   IncludeDirective,
   EndDirective,
+
+  // Macro invocations (must come after directive keywords)
+  MacroInvocationStart,
 
   // References
   QuietRef,

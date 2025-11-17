@@ -45,6 +45,7 @@ import {
   BreakDirective,
   StopDirective,
   MacroDirective,
+  MacroInvocationStart,
   EvaluateDirective,
   ParseDirective,
   IncludeDirective,
@@ -250,6 +251,7 @@ export class VtlParser extends CstParser {
       { ALT: () => this.SUBRULE(this.breakDirective) },
       { ALT: () => this.SUBRULE(this.stopDirective) },
       { ALT: () => this.SUBRULE(this.macroDirective) },
+      { ALT: () => this.SUBRULE(this.macroInvocation) },
       { ALT: () => this.SUBRULE(this.evaluateDirective) },
       { ALT: () => this.SUBRULE(this.parseDirective) },
       { ALT: () => this.SUBRULE(this.includeDirective) },
@@ -443,10 +445,11 @@ export class VtlParser extends CstParser {
     this.OPTION1(() => {
       this.CONSUME(LParen);
       this.OPTION2(() => {
-        this.CONSUME2(Identifier, { LABEL: 'parameters' });
+        // Macro parameters are $param1, $param2, etc.
+        this.CONSUME(DollarRef, { LABEL: 'parameters' });
         this.MANY1(() => {
           this.CONSUME(Comma);
-          this.CONSUME3(Identifier, { LABEL: 'parameters' });
+          this.CONSUME1(DollarRef, { LABEL: 'parameters' });
         });
       });
       this.CONSUME(RParen);
@@ -462,7 +465,23 @@ export class VtlParser extends CstParser {
     });
     this.CONSUME(EndDirective, { LABEL: 'endKeyword' });
     // Capture optional whitespace after #end as postfix
-    this.OPTION3(() => this.CONSUME4(Whitespace, { LABEL: 'postfix' }));
+    this.OPTION3(() => this.CONSUME2(Whitespace, { LABEL: 'postfix' }));
+  });
+
+  // Macro invocation: #macroName(arg1, arg2, ...)
+  macroInvocation = this.RULE('macroInvocation', () => {
+    this.CONSUME(MacroInvocationStart, { LABEL: 'invocation' });
+    this.CONSUME(LParen);
+    this.OPTION(() => {
+      this.SUBRULE(this.expression, { LABEL: 'arguments' });
+      this.MANY(() => {
+        this.CONSUME(Comma);
+        this.SUBRULE1(this.expression, { LABEL: 'arguments' });
+      });
+    });
+    this.CONSUME(RParen);
+    // Capture optional whitespace after invocation as postfix
+    this.OPTION1(() => this.CONSUME(Whitespace, { LABEL: 'postfix' }));
   });
 
   // #evaluate directive

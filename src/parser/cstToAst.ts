@@ -378,27 +378,30 @@ function textToAst(text: CstNode): Text {
 }
 
 function interpolationToAst(interp: CstNode): Interpolation {
-  // ${expression} syntax
+  // ${expression} syntax - braced
   if (interp.children.expression) {
     return {
       type: 'Interpolation',
       expression: expressionToAst(interp.children.expression[0] as CstNode),
+      braced: true,
       location: getLocation(interp),
     };
   }
-  // $var.chain syntax
+  // $var.chain syntax - not braced
   if (interp.children.varChain) {
     return {
       type: 'Interpolation',
       expression: varChainToAst(interp.children.varChain[0] as CstNode),
+      braced: false,
       location: getLocation(interp),
     };
   }
-  // ${var.chain} syntax (bare var chain)
+  // ${var.chain} syntax (bare var chain) - braced
   if (interp.children.bareVarChain) {
     return {
       type: 'Interpolation',
       expression: bareVarChainToAst(interp.children.bareVarChain[0] as CstNode),
+      braced: true,
       location: getLocation(interp),
     };
   }
@@ -621,9 +624,12 @@ function macroDirectiveToAst(macroDirective: CstNode): MacroDirective {
 }
 
 function macroInvocationToAst(macroInvocation: CstNode): any {
+  // Extract macro name from MacroInvocationStart token (e.g., "#test" -> "test")
+  const invocationToken = (macroInvocation.children.invocation![0] as any).image;
+  const name = invocationToken.startsWith('#') ? invocationToken.substring(1) : invocationToken;
   return {
     type: 'MacroInvocation',
-    name: (macroInvocation.children.name![0] as any).image,
+    name: name,
     arguments: macroInvocation.children.arguments?.map((arg: any) => expressionToAst(arg)) || [],
     location: getLocation(macroInvocation),
   };
