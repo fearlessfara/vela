@@ -239,10 +239,15 @@ export class VtlParser extends CstParser {
   // #if directive
   ifDirective = this.RULE('ifDirective', () => {
     this.CONSUME(IfDirective, { LABEL: 'ifKeyword' });
+    // Optional whitespace before (
+    this.MANY1(() => this.OR1([
+      { ALT: () => this.CONSUME(Whitespace) },
+      { ALT: () => this.CONSUME(Newline) },
+    ]));
     this.CONSUME(LParen);
     this.SUBRULE(this.expression, { LABEL: 'condition' });
     this.CONSUME(RParen);
-    this.MANY1({
+    this.MANY2({
       GATE: () => {
         const t = this.LA(1).tokenType;
         return t !== ElseIfDirective && t !== ElseDirective && t !== EndDirective;
@@ -251,7 +256,7 @@ export class VtlParser extends CstParser {
         this.SUBRULE(this.segment, { LABEL: 'thenBody' });
       },
     });
-    this.MANY2(() => {
+    this.MANY3(() => {
       this.SUBRULE(this.elseIfDirective, { LABEL: 'elseIfBranches' });
     });
     this.OPTION1(() => {
@@ -265,10 +270,15 @@ export class VtlParser extends CstParser {
   // #elseif directive
   elseIfDirective = this.RULE('elseIfDirective', () => {
     this.CONSUME(ElseIfDirective, { LABEL: 'elseIfKeyword' });
+    // Optional whitespace before (
+    this.MANY1(() => this.OR1([
+      { ALT: () => this.CONSUME(Whitespace) },
+      { ALT: () => this.CONSUME(Newline) },
+    ]));
     this.CONSUME(LParen);
     this.SUBRULE(this.expression, { LABEL: 'condition' });
     this.CONSUME(RParen);
-    this.MANY({
+    this.MANY2({
       GATE: () => {
         const t = this.LA(1).tokenType;
         return t !== ElseIfDirective && t !== ElseDirective && t !== EndDirective;
@@ -296,27 +306,32 @@ export class VtlParser extends CstParser {
   // #set directive
   setDirective = this.RULE('setDirective', () => {
     this.CONSUME(SetDirective, { LABEL: 'setKeyword' });
+    // Optional whitespace before (
+    this.MANY1(() => this.OR1([
+      { ALT: () => this.CONSUME(Whitespace) },
+      { ALT: () => this.CONSUME(Newline) },
+    ]));
     this.CONSUME(LParen);
     // Optional whitespace after (
-    this.MANY1(() => this.OR1([
+    this.MANY2(() => this.OR2([
       { ALT: () => this.CONSUME1(Whitespace) },
       { ALT: () => this.CONSUME1(Newline) },
     ]));
     this.CONSUME(DollarRef, { LABEL: 'variable' });
     // Optional whitespace after variable
-    this.MANY2(() => this.OR2([
+    this.MANY3(() => this.OR3([
       { ALT: () => this.CONSUME2(Whitespace) },
       { ALT: () => this.CONSUME2(Newline) },
     ]));
     this.CONSUME(Assign);
     // Optional whitespace after =
-    this.MANY3(() => this.OR3([
+    this.MANY4(() => this.OR4([
       { ALT: () => this.CONSUME3(Whitespace) },
       { ALT: () => this.CONSUME3(Newline) },
     ]));
     this.SUBRULE(this.expression, { LABEL: 'value' });
     // Optional whitespace before )
-    this.MANY4(() => this.OR4([
+    this.MANY5(() => this.OR5([
       { ALT: () => this.CONSUME4(Whitespace) },
       { ALT: () => this.CONSUME4(Newline) },
     ]));
@@ -328,10 +343,15 @@ export class VtlParser extends CstParser {
   // #foreach directive
   forEachDirective = this.RULE('forEachDirective', () => {
     this.CONSUME(ForEachDirective, { LABEL: 'foreachKeyword' });
+    // Optional whitespace before (
+    this.MANY1(() => this.OR1([
+      { ALT: () => this.CONSUME(Whitespace) },
+      { ALT: () => this.CONSUME(Newline) },
+    ]));
     this.CONSUME(LParen);
     this.CONSUME(DollarRef, { LABEL: 'variable' });
     // "in" keyword: can be InKeyword token, TemplateText "in ", or Identifier "in"
-    this.OR([
+    this.OR2([
       { ALT: () => this.CONSUME(InKeyword, { LABEL: 'inKeyword' }) },
       {
         GATE: () => {
@@ -358,7 +378,7 @@ export class VtlParser extends CstParser {
     ]);
     this.SUBRULE(this.expression, { LABEL: 'iterable' });
     this.CONSUME(RParen);
-    this.MANY({
+    this.MANY2({
       GATE: () => {
         const t = this.LA(1).tokenType;
         return t !== EndDirective && t !== ElseDirective;
@@ -414,17 +434,22 @@ export class VtlParser extends CstParser {
     this.CONSUME(MacroDirective, { LABEL: 'macroKeyword' });
     this.CONSUME1(Identifier, { LABEL: 'name' });
     this.OPTION1(() => {
+      // Optional whitespace before (
+      this.MANY1(() => this.OR1([
+        { ALT: () => this.CONSUME(Whitespace) },
+        { ALT: () => this.CONSUME(Newline) },
+      ]));
       this.CONSUME(LParen);
       this.OPTION2(() => {
         this.CONSUME2(Identifier, { LABEL: 'parameters' });
-        this.MANY1(() => {
+        this.MANY2(() => {
           this.CONSUME(Comma);
           this.CONSUME3(Identifier, { LABEL: 'parameters' });
         });
       });
       this.CONSUME(RParen);
     });
-    this.MANY2({
+    this.MANY3({
       GATE: () => {
         const t = this.LA(1).tokenType;
         return t !== EndDirective;
@@ -441,6 +466,11 @@ export class VtlParser extends CstParser {
   // #evaluate directive
   evaluateDirective = this.RULE('evaluateDirective', () => {
     this.CONSUME(EvaluateDirective, { LABEL: 'evaluateKeyword' });
+    // Optional whitespace before (
+    this.MANY1(() => this.OR1([
+      { ALT: () => this.CONSUME(Whitespace) },
+      { ALT: () => this.CONSUME(Newline) },
+    ]));
     this.CONSUME(LParen);
     this.SUBRULE(this.expression, { LABEL: 'expression' });
     this.CONSUME(RParen);
@@ -451,6 +481,11 @@ export class VtlParser extends CstParser {
   // #parse directive
   parseDirective = this.RULE('parseDirective', () => {
     this.CONSUME(ParseDirective, { LABEL: 'parseKeyword' });
+    // Optional whitespace before (
+    this.MANY1(() => this.OR1([
+      { ALT: () => this.CONSUME(Whitespace) },
+      { ALT: () => this.CONSUME(Newline) },
+    ]));
     this.CONSUME(LParen);
     this.SUBRULE(this.expression, { LABEL: 'expression' });
     this.CONSUME(RParen);
@@ -461,6 +496,11 @@ export class VtlParser extends CstParser {
   // #include directive
   includeDirective = this.RULE('includeDirective', () => {
     this.CONSUME(IncludeDirective, { LABEL: 'includeKeyword' });
+    // Optional whitespace before (
+    this.MANY1(() => this.OR1([
+      { ALT: () => this.CONSUME(Whitespace) },
+      { ALT: () => this.CONSUME(Newline) },
+    ]));
     this.CONSUME(LParen);
     this.SUBRULE(this.expression, { LABEL: 'expression' });
     this.CONSUME(RParen);
