@@ -596,8 +596,8 @@ export class VtlParser extends CstParser {
           { ALT: () => this.CONSUME1(Newline) },
         ]));
         this.OR2([
-          { ALT: () => this.CONSUME(Or, { LABEL: 'operator' }) },
-          { ALT: () => this.CONSUME(OrWord, { LABEL: 'operator' }) },
+          { ALT: () => this.CONSUME(Or) },
+          { ALT: () => this.CONSUME(OrWord) },
         ]);
         // Allow whitespace after operator
         this.MANY3(() => this.OR3([
@@ -631,8 +631,8 @@ export class VtlParser extends CstParser {
           { ALT: () => this.CONSUME1(Newline) },
         ]));
         this.OR2([
-          { ALT: () => this.CONSUME(And, { LABEL: 'operator' }) },
-          { ALT: () => this.CONSUME(AndWord, { LABEL: 'operator' }) },
+          { ALT: () => this.CONSUME(And) },
+          { ALT: () => this.CONSUME(AndWord) },
         ]);
         // Allow whitespace after operator
         this.MANY3(() => this.OR3([
@@ -666,10 +666,10 @@ export class VtlParser extends CstParser {
           { ALT: () => this.CONSUME1(Newline) },
         ]));
         this.OR2([
-          { ALT: () => this.CONSUME(Eq, { LABEL: 'operator' }) },
-          { ALT: () => this.CONSUME(Ne, { LABEL: 'operator' }) },
-          { ALT: () => this.CONSUME(EqWord, { LABEL: 'operator' }) },
-          { ALT: () => this.CONSUME(NeWord, { LABEL: 'operator' }) },
+          { ALT: () => this.CONSUME(Eq) },
+          { ALT: () => this.CONSUME(Ne) },
+          { ALT: () => this.CONSUME(EqWord) },
+          { ALT: () => this.CONSUME(NeWord) },
         ]);
         // Allow whitespace after operator
         this.MANY3(() => this.OR3([
@@ -704,14 +704,14 @@ export class VtlParser extends CstParser {
           { ALT: () => this.CONSUME1(Newline) },
         ]));
         this.OR2([
-          { ALT: () => this.CONSUME(Lt, { LABEL: 'operator' }) },
-          { ALT: () => this.CONSUME(Le, { LABEL: 'operator' }) },
-          { ALT: () => this.CONSUME(Gt, { LABEL: 'operator' }) },
-          { ALT: () => this.CONSUME(Ge, { LABEL: 'operator' }) },
-          { ALT: () => this.CONSUME(LtWord, { LABEL: 'operator' }) },
-          { ALT: () => this.CONSUME(LeWord, { LABEL: 'operator' }) },
-          { ALT: () => this.CONSUME(GtWord, { LABEL: 'operator' }) },
-          { ALT: () => this.CONSUME(GeWord, { LABEL: 'operator' }) },
+          { ALT: () => this.CONSUME(Lt) },
+          { ALT: () => this.CONSUME(Le) },
+          { ALT: () => this.CONSUME(Gt) },
+          { ALT: () => this.CONSUME(Ge) },
+          { ALT: () => this.CONSUME(LtWord) },
+          { ALT: () => this.CONSUME(LeWord) },
+          { ALT: () => this.CONSUME(GtWord) },
+          { ALT: () => this.CONSUME(GeWord) },
         ]);
         // Allow whitespace after operator
         this.MANY3(() => this.OR3([
