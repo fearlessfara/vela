@@ -99,8 +99,32 @@ function extractPrefixPostfix(segments: Segment[]): Segment[] {
   const result: Segment[] = [];
 
   for (let i = 0; i < segments.length; i++) {
-    const segment = segments[i];
+    let segment = segments[i];
     if (!segment) continue; // Safety check
+
+    // RECURSIVELY process directive bodies FIRST
+    if (segment.type === 'IfDirective') {
+      segment = {
+        ...segment,
+        thenBody: extractPrefixPostfix(segment.thenBody),
+        elseIfBranches: segment.elseIfBranches.map(branch => ({
+          ...branch,
+          body: extractPrefixPostfix(branch.body),
+        })),
+        elseBody: segment.elseBody ? extractPrefixPostfix(segment.elseBody) : undefined,
+      } as IfDirective;
+    } else if (segment.type === 'ForEachDirective') {
+      segment = {
+        ...segment,
+        body: extractPrefixPostfix(segment.body),
+        elseBody: segment.elseBody ? extractPrefixPostfix(segment.elseBody) : undefined,
+      } as ForEachDirective;
+    } else if (segment.type === 'MacroDirective') {
+      segment = {
+        ...segment,
+        body: extractPrefixPostfix(segment.body),
+      } as MacroDirective;
+    }
 
     const prevSegment = i > 0 ? segments[i - 1] : null;
     const nextSegment = i < segments.length - 1 ? segments[i + 1] : null;
@@ -129,10 +153,10 @@ function extractPrefixPostfix(segments: Segment[]): Segment[] {
       if (!isMacroDirective && prevSegment && prevSegment.type === 'Text') {
         const text = prevSegment.value;
         // Extract prefix based on text content:
-        // 1. If text is whitespace-only (newline + optional spaces/tabs): extract all as prefix
+        // 1. If text is whitespace-only (spaces/tabs OR newline + optional spaces/tabs): extract all as prefix
         // 2. If text has content: only extract indentation (spaces/tabs) after last newline, not the newline itself
         // The newline stays with content to preserve line structure (e.g., "Numbers:\n" before #foreach)
-        const whitespaceOnlyMatch = text.match(/^([ \t]*\r?\n[ \t]*)$/);
+        const whitespaceOnlyMatch = text.match(/^([ \t]*\r?\n[ \t]*|[ \t]+)$/);
         if (whitespaceOnlyMatch) {
           // Text is whitespace-only - extract it all as prefix
           (segment as any).prefix = text;
