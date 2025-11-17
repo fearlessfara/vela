@@ -561,31 +561,44 @@ export class VtlParser extends CstParser {
   // Conditional (ternary) operation: condition ? then : else
   conditional = this.RULE('conditional', () => {
     this.SUBRULE(this.logicalOr);
-    this.OPTION(() => {
-      // Allow whitespace before ?
-      this.MANY1(() => this.OR1([
-        { ALT: () => this.CONSUME1(Whitespace) },
-        { ALT: () => this.CONSUME1(Newline) },
-      ]));
-      this.CONSUME(Question);
-      // Allow whitespace after ?
-      this.MANY2(() => this.OR2([
-        { ALT: () => this.CONSUME2(Whitespace) },
-        { ALT: () => this.CONSUME2(Newline) },
-      ]));
-      this.SUBRULE1(this.expression);
-      // Allow whitespace before :
-      this.MANY3(() => this.OR3([
-        { ALT: () => this.CONSUME3(Whitespace) },
-        { ALT: () => this.CONSUME3(Newline) },
-      ]));
-      this.CONSUME(Colon);
-      // Allow whitespace after :
-      this.MANY4(() => this.OR4([
-        { ALT: () => this.CONSUME4(Whitespace) },
-        { ALT: () => this.CONSUME4(Newline) },
-      ]));
-      this.SUBRULE2(this.expression);
+    this.OPTION({
+      GATE: () => {
+        // Only enter ternary parsing if we can find a ? within a few tokens
+        for (let i = 1; i <= 5; i++) {
+          const tok = this.LA(i);
+          if (!tok) return false;
+          if (tok.tokenType === Question) return true;
+          // Stop if we hit something that's definitely not part of a ternary
+          if (tok.tokenType !== Whitespace && tok.tokenType !== Newline) return false;
+        }
+        return false;
+      },
+      DEF: () => {
+        // Allow whitespace before ?
+        this.MANY(() => this.OR([
+          { ALT: () => this.CONSUME1(Whitespace) },
+          { ALT: () => this.CONSUME1(Newline) },
+        ]));
+        this.CONSUME(Question);
+        // Allow whitespace after ?
+        this.MANY1(() => this.OR1([
+          { ALT: () => this.CONSUME2(Whitespace) },
+          { ALT: () => this.CONSUME2(Newline) },
+        ]));
+        this.SUBRULE1(this.expression);
+        // Allow whitespace before :
+        this.MANY3(() => this.OR3([
+          { ALT: () => this.CONSUME3(Whitespace) },
+          { ALT: () => this.CONSUME3(Newline) },
+        ]));
+        this.CONSUME(Colon);
+        // Allow whitespace after :
+        this.MANY4(() => this.OR4([
+          { ALT: () => this.CONSUME4(Whitespace) },
+          { ALT: () => this.CONSUME4(Newline) },
+        ]));
+        this.SUBRULE2(this.expression);
+      }
     });
   });
 
