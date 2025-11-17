@@ -111,6 +111,16 @@ function extractPrefixPostfix(segments: Segment[]): Segment[] {
                         segment.type !== 'VariableReference';
 
     if (isDirective) {
+      // Check if there's content before this directive on the same line
+      // This is used later to determine if postfix should be gobbled
+      // A directive is on a directive-only line if previous segment is empty/newline or start of template
+      const prevInResult = result[result.length - 1];
+      const hasContentBefore = prevInResult &&
+                              (prevInResult.type !== 'Text' || !prevInResult.value.match(/^[ \t]*\r?\n?$/));
+      if (hasContentBefore) {
+        (segment as any).hasContentBefore = true;
+      }
+
       // Extract prefix from previous Text segment if it ends with whitespace
       if (prevSegment && prevSegment.type === 'Text') {
         const text = prevSegment.value;

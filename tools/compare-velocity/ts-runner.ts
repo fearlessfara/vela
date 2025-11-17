@@ -24,7 +24,9 @@ export async function runTSVelocity(options: TSRunnerOptions): Promise<string> {
   const { VelocityEngine } = await import(enginePath.href);
   
   // Create engine and render
-  const engine = new VelocityEngine(false);
+  // Use default spaceGobbling: 'lines' to match Java Velocity 2.3's default behavior
+  // In 'lines' mode, newlines after directives on directive-only lines are removed
+  const engine = new VelocityEngine({ spaceGobbling: 'lines' });
   const output = engine.render(template, context);
   
   return output;

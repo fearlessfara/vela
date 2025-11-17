@@ -148,9 +148,12 @@ export class VtlEvaluator {
   private writePostfix(segment: Segment): void {
     if (!segment.postfix) return;
 
-    // Only NONE mode writes postfix
-    // BC, LINES, and STRUCTURED all gobble the postfix (trailing whitespace/newline)
-    if (this.spaceGobbling === 'none') {
+    // Write postfix if:
+    // 1. spaceGobbling is 'none' (always preserve), OR
+    // 2. Directive has content before it on the same line (not a directive-only line)
+    // In 'lines' mode, only gobble postfix for directives on directive-only lines
+    const hasContentBefore = (segment as any).hasContentBefore || false;
+    if (this.spaceGobbling === 'none' || hasContentBefore) {
       this.stringBuilder.append(segment.postfix);
     }
   }
@@ -532,7 +535,13 @@ export class VtlEvaluator {
         // Convert string numbers to numbers for division
         const leftDiv = typeof left === 'string' && !isNaN(Number(left)) ? Number(left) : left;
         const rightDiv = typeof right === 'string' && !isNaN(Number(right)) ? Number(right) : right;
-        return rightDiv !== 0 ? leftDiv / rightDiv : null; // Java Velocity returns null for division by zero
+        if (rightDiv === 0) return null; // Java Velocity returns null for division by zero
+        // Java Velocity uses integer division when both operands are integers
+        const result = leftDiv / rightDiv;
+        if (Number.isInteger(leftDiv) && Number.isInteger(rightDiv)) {
+          return Math.floor(result);
+        }
+        return result;
       case '%':
         // Convert string numbers to numbers for modulo
         const leftMod = typeof left === 'string' && !isNaN(Number(left)) ? Number(left) : left;
