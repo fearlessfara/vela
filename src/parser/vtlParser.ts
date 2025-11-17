@@ -282,12 +282,25 @@ export class VtlParser extends CstParser {
   // #if directive
   ifDirective = this.RULE('ifDirective', () => {
     this.CONSUME(IfDirective, { LABEL: 'ifKeyword' });
-    // Optional whitespace between directive and opening parenthesis
-    this.MANY(() => this.CONSUME(Whitespace));
+    // Optional whitespace/newlines between directive and opening parenthesis
+    this.MANY(() => this.OR([
+      { ALT: () => this.CONSUME(Whitespace) },
+      { ALT: () => this.CONSUME(Newline) },
+    ]));
     this.CONSUME(LParen);
+    // Optional whitespace/newlines after opening parenthesis
+    this.MANY1(() => this.OR1([
+      { ALT: () => this.CONSUME1(Whitespace) },
+      { ALT: () => this.CONSUME1(Newline) },
+    ]));
     this.SUBRULE(this.expression, { LABEL: 'condition' });
+    // Optional whitespace/newlines before closing parenthesis
+    this.MANY2(() => this.OR2([
+      { ALT: () => this.CONSUME2(Whitespace) },
+      { ALT: () => this.CONSUME2(Newline) },
+    ]));
     this.CONSUME(RParen);
-    this.MANY1({
+    this.MANY3({
       GATE: () => {
         const t = this.LA(1).tokenType;
         return t !== ElseIfDirective && t !== ElseDirective && t !== EndDirective;
@@ -296,7 +309,7 @@ export class VtlParser extends CstParser {
         this.SUBRULE(this.segment, { LABEL: 'thenBody' });
       },
     });
-    this.MANY2(() => {
+    this.MANY4(() => {
       this.SUBRULE(this.elseIfDirective, { LABEL: 'elseIfBranches' });
     });
     this.OPTION1(() => {
@@ -304,7 +317,7 @@ export class VtlParser extends CstParser {
     });
     this.CONSUME(EndDirective, { LABEL: 'endKeyword' });
     // Capture optional whitespace after #end as postfix
-    this.OPTION2(() => this.CONSUME1(Whitespace, { LABEL: 'postfix' }));
+    this.OPTION2(() => this.CONSUME3(Whitespace, { LABEL: 'postfix' }));
   });
 
   // #elseif directive
