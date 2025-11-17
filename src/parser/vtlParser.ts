@@ -888,8 +888,13 @@ export class VtlParser extends CstParser {
   // Array literal [elem1, elem2] or range [1..3]
   arrayLiteral = this.RULE('arrayLiteral', () => {
     this.CONSUME(LBracket);
+    // Optional whitespace after [
+    this.MANY1(() => this.OR1([
+      { ALT: () => this.CONSUME(Whitespace) },
+      { ALT: () => this.CONSUME(Newline) },
+    ]));
     this.OPTION(() => {
-      this.OR([
+      this.OR2([
         {
           GATE: () => {
             const la1 = this.LA(1);
@@ -905,14 +910,29 @@ export class VtlParser extends CstParser {
         {
           ALT: () => {
             this.SUBRULE1(this.expression);
-            this.MANY(() => {
+            this.MANY2(() => {
+              // Optional whitespace before comma
+              this.MANY3(() => this.OR3([
+                { ALT: () => this.CONSUME1(Whitespace) },
+                { ALT: () => this.CONSUME1(Newline) },
+              ]));
               this.CONSUME(Comma);
+              // Optional whitespace after comma
+              this.MANY4(() => this.OR4([
+                { ALT: () => this.CONSUME2(Whitespace) },
+                { ALT: () => this.CONSUME2(Newline) },
+              ]));
               this.SUBRULE2(this.expression);
             });
           },
         },
       ]);
     });
+    // Optional whitespace before ]
+    this.MANY5(() => this.OR5([
+      { ALT: () => this.CONSUME3(Whitespace) },
+      { ALT: () => this.CONSUME3(Newline) },
+    ]));
     this.CONSUME(RBracket);
   });
 
