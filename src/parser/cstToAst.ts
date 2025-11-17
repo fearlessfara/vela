@@ -372,6 +372,19 @@ function textToAst(text: CstNode): Text {
       const escapedBackslashes = doubleEscapes.replace(/\\\\/g, '\\');
       return escapedBackslashes + directive;
     }
+
+    // Handle escaped references: \$price -> $price, \\$price -> \$price, etc.
+    // Pattern: (\\\\)*\$...
+    const escapedRefMatch = image.match(/^((?:\\\\)*)\\(\$!?[a-zA-Z_$][a-zA-Z0-9_$]*|\$\{[^}]+\})/);
+    if (escapedRefMatch && escapedRefMatch[1] !== undefined && escapedRefMatch[2] !== undefined) {
+      const doubleEscapes = escapedRefMatch[1];
+      const reference = escapedRefMatch[2];
+      // For each \\ pair, output one \
+      // Then output the reference without the escape backslash
+      const escapedBackslashes = doubleEscapes.replace(/\\\\/g, '\\');
+      return escapedBackslashes + reference;
+    }
+
     return image;
   }).join('');
   return {
@@ -901,19 +914,19 @@ function objectLiteralToAst(obj: CstNode): ObjectLiteral {
 }
 
 function arrayLiteralToAst(arr: CstNode): ArrayLiteral | RangeLiteral {
-  // Check if this is a range literal [1..3]
+  // Check if this is a range literal [1..3] or [$start..$end]
   if (arr.children.start && arr.children.rangeOperator && arr.children.end) {
-    const start = parseInt((arr.children.start[0] as any).image);
-    const end = parseInt((arr.children.end[0] as any).image);
-    
+    const startExpr = primaryToAst(arr.children.start[0] as CstNode);
+    const endExpr = primaryToAst(arr.children.end[0] as CstNode);
+
     return {
       type: 'RangeLiteral',
-      start,
-      end,
+      start: startExpr,
+      end: endExpr,
       location: getLocation(arr),
     };
   }
-  
+
   // Regular array literal
   const elements = arr.children.expression?.map(expr => expressionToAst(expr as CstNode)) || [];
 

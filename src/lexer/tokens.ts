@@ -84,6 +84,15 @@ export const Identifier = createToken({
   categories: [AnyTextFragment],
 });
 
+// Escaped reference: \$variable or \\$variable, \\\$variable, etc.
+// Matches: (pairs of \\)* followed by \$ followed by identifier
+export const EscapedReference = createToken({
+  name: 'EscapedReference',
+  pattern: /(?:\\\\)*\\(?:\$!?[a-zA-Z_$][a-zA-Z0-9_$]*|\$\{[^}]+\})/,
+  line_breaks: false,
+  categories: [AnyTextFragment], // Treat as text in template output
+});
+
 export const DollarRef = createToken({
   name: 'DollarRef',
   pattern: /\$[a-zA-Z_$][a-zA-Z0-9_$]*/,
@@ -846,12 +855,12 @@ export const TemplateText = createToken({
       let i = startOffset;
       while (i < len) {
         const ch = text.charCodeAt(i);
-        // Stop at backslash if it precedes # (escaped directive pattern)
+        // Stop at backslash if it precedes # or $ (escaped directive/reference pattern)
         if (ch === 92 /*\*/ && i + 1 < len) {
           const nextCh = text.charCodeAt(i + 1);
-          if (nextCh === 35 /*#*/ || nextCh === 92 /*\*/) {
-            // This might be start of escaped directive like \#end or \\#end
-            // Let EscapedDirective token match instead
+          if (nextCh === 35 /*#*/ || nextCh === 36 /*$*/ || nextCh === 92 /*\*/) {
+            // This might be start of escaped directive like \#end or escaped reference like \$price
+            // Let EscapedDirective or EscapedReference token match instead
             break;
           }
         }
@@ -946,7 +955,8 @@ export const allTokens: TokenType[] = [
   // Macro invocations (must come after directive keywords)
   MacroInvocationStart,
 
-  // References
+  // References (escaped references must come before regular references)
+  EscapedReference,
   QuietRef,
   DollarRef,
 

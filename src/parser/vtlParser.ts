@@ -486,7 +486,7 @@ export class VtlParser extends CstParser {
     this.OPTION3(() => this.CONSUME2(Whitespace, { LABEL: 'postfix' }));
   });
 
-  // Macro invocation: #macroName(arg1, arg2, ...)
+  // Macro invocation: #macroName(arg1, arg2, ...) with comma or space separation
   macroInvocation = this.RULE('macroInvocation', () => {
     this.CONSUME(MacroInvocationStart, { LABEL: 'invocation' });
     this.CONSUME(LParen);
@@ -494,16 +494,36 @@ export class VtlParser extends CstParser {
     this.OPTION(() => {
       this.SUBRULE(this.expression, { LABEL: 'arguments' });
       this.MANY1(() => {
-        this.MANY2(() => this.CONSUME1(Whitespace)); // Optional whitespace before comma
-        this.CONSUME(Comma);
-        this.MANY3(() => this.CONSUME2(Whitespace)); // Optional whitespace after comma
+        // Argument separator: require either comma OR whitespace (or both)
+        this.OR([
+          {
+            // Check if there's a comma (possibly after whitespace)
+            GATE: () => {
+              const la1 = this.LA(1);
+              const la2 = this.LA(2);
+              return la1.tokenType === Comma || la2.tokenType === Comma;
+            },
+            ALT: () => {
+              // Comma with optional whitespace
+              this.MANY2(() => this.CONSUME1(Whitespace));
+              this.CONSUME(Comma);
+              this.MANY3(() => this.CONSUME2(Whitespace));
+            },
+          },
+          {
+            // Space-separated (at least one whitespace required, no comma)
+            ALT: () => {
+              this.AT_LEAST_ONE(() => this.CONSUME3(Whitespace));
+            },
+          },
+        ]);
         this.SUBRULE1(this.expression, { LABEL: 'arguments' });
       });
-      this.MANY4(() => this.CONSUME3(Whitespace)); // Optional whitespace before )
+      this.MANY4(() => this.CONSUME4(Whitespace)); // Optional whitespace before )
     });
     this.CONSUME(RParen);
     // Capture optional whitespace after invocation as postfix
-    this.OPTION1(() => this.CONSUME4(Whitespace, { LABEL: 'postfix' }));
+    this.OPTION1(() => this.CONSUME5(Whitespace, { LABEL: 'postfix' }));
   });
 
   // #evaluate directive
@@ -926,14 +946,14 @@ export class VtlParser extends CstParser {
       this.OR2([
         {
           GATE: () => {
-            const la1 = this.LA(1);
+            // Check if token at position 2 is Range to distinguish [expr..expr] from [expr, expr]
             const la2 = this.LA(2);
-            return la1.tokenType === NumberLiteral && la2.tokenType === Range;
+            return la2.tokenType === Range;
           },
           ALT: () => {
-            this.CONSUME(NumberLiteral, { LABEL: 'start' });
+            this.SUBRULE(this.primary, { LABEL: 'start' });
             this.CONSUME(Range, { LABEL: 'rangeOperator' });
-            this.CONSUME1(NumberLiteral, { LABEL: 'end' });
+            this.SUBRULE1(this.primary, { LABEL: 'end' });
           },
         },
         {

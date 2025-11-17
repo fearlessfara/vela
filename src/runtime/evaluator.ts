@@ -139,8 +139,11 @@ export class VtlEvaluator {
     if (expr.type === 'VariableReference') {
       return expr.quiet;
     }
-    if (expr.type === 'MemberAccess' || expr.type === 'ArrayAccess' || expr.type === 'FunctionCall') {
+    if (expr.type === 'MemberAccess' || expr.type === 'ArrayAccess') {
       return this.hasQuietRoot(expr.object);
+    }
+    if (expr.type === 'FunctionCall') {
+      return this.hasQuietRoot(expr.callee);
     }
     return false;
   }
@@ -728,8 +731,10 @@ export class VtlEvaluator {
   }
 
   private evaluateRangeLiteral(range: RangeLiteral): any {
+    const start = this.evaluateExpression(range.start);
+    const end = this.evaluateExpression(range.end);
     const result = [];
-    for (let i = range.start; i <= range.end; i++) {
+    for (let i = start; i <= end; i++) {
       result.push(i);
     }
     return result;
