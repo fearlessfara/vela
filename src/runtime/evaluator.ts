@@ -118,13 +118,32 @@ export class VtlEvaluator {
 
   private evaluateInterpolation(interp: Interpolation): void {
     const value = this.evaluateExpression(interp.expression);
-    // If it's a simple variable reference that's null, output the literal variable name
-    if (value === null && interp.expression.type === 'VariableReference') {
-      const varRef = interp.expression as VariableReference;
-      this.stringBuilder.appendString('$' + (varRef.quiet ? '!' : '') + varRef.name);
+    // If the value is null, output the literal reference (Java Velocity behavior)
+    if (value === null) {
+      this.stringBuilder.appendString(this.expressionToLiteralReference(interp.expression));
       return;
     }
     this.appendInterpolatedValue(value);
+  }
+
+  /**
+   * Convert an expression to its literal reference form (e.g., "$name.length")
+   * Used when a property/method doesn't exist and should be output literally
+   */
+  private expressionToLiteralReference(expr: any): string {
+    if (expr.type === 'VariableReference') {
+      return '$' + (expr.quiet ? '!' : '') + expr.name;
+    }
+    if (expr.type === 'MemberAccess') {
+      const objectRef = this.expressionToLiteralReference(expr.object);
+      return objectRef + '.' + expr.property;
+    }
+    if (expr.type === 'FunctionCall') {
+      const calleeRef = this.expressionToLiteralReference(expr.callee);
+      return calleeRef + '()';
+    }
+    // For other expression types, return empty string
+    return '';
   }
 
   /**
@@ -492,18 +511,43 @@ export class VtlEvaluator {
     const object = this.evaluateExpression(member.object);
 
     if (object === null || object === undefined) {
-      return '';
+      return null;
     }
 
-    if (typeof object === 'object' && object !== null) {
-      const value = (object as any)[member.property];
-      if (typeof value === 'function') {
-        return value.bind(object);
+    // Velocity-specific methods for arrays/lists (Java compatibility)
+    if (Array.isArray(object)) {
+      if (member.property === 'size') {
+        return () => object.length;
       }
-      return value !== undefined ? value : '';
+      if (member.property === 'get') {
+        return (index: number) => object[index] !== undefined ? object[index] : null;
+      }
+      if (member.property === 'isEmpty') {
+        return () => object.length === 0;
+      }
     }
 
-    return '';
+    // JavaScript automatically boxes primitives when accessing properties
+    // So we can access properties/methods on strings, numbers, etc.
+    const value = (object as any)[member.property];
+
+    // If the value is a function (method), bind it to the object
+    // This ensures methods like 'velocity'.toUpperCase() work correctly
+    if (typeof value === 'function') {
+      return value.bind(object);
+    }
+
+    // For primitive types (string, number, boolean), Java Velocity only supports
+    // method calls, not property access. So return null for non-function properties
+    // on primitives to trigger literal reference output
+    const objectType = typeof object;
+    if (objectType === 'string' || objectType === 'number' || objectType === 'boolean') {
+      // Property doesn't exist or is not a method on primitive - return null
+      return null;
+    }
+
+    // For objects, return the property value, or null if undefined
+    return value !== undefined ? value : null;
   }
 
   private evaluateFunctionCall(call: FunctionCall): any {
