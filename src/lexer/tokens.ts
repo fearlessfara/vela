@@ -108,7 +108,7 @@ export const InKeyword = createToken({
 // Interpolation
 export const InterpStart = createToken({
   name: 'InterpStart',
-  pattern: /\$\{(?=[a-zA-Z_])/,  // Only match ${ when followed by an identifier (Java Velocity compatibility)
+  pattern: /\$\{/,
 });
 
 
@@ -152,7 +152,7 @@ export const RBracket = createToken({
 export const Dot = createToken({
   name: 'Dot',
   pattern: /\./,
-  categories: [AnyTextFragment], // Can be part of text in template context (e.g., "...")
+
 });
 
 export const Comma = createToken({
@@ -170,14 +170,14 @@ export const Colon = createToken({
 export const Semicolon = createToken({
   name: 'Semicolon',
   pattern: /;/,
-  categories: [AnyTextFragment], // Can be part of text in template context
+
 });
 
 // Operators
 export const Assign = createToken({
   name: 'Assign',
   pattern: /=/,
-  categories: [AnyTextFragment], // Can be part of text in template context (e.g., "a = b")
+
 });
 
 export const Plus = createToken({
@@ -189,31 +189,31 @@ export const Plus = createToken({
 export const Minus = createToken({
   name: 'Minus',
   pattern: /-/,
-  categories: [AnyTextFragment], // Can be part of text in template context (e.g., "- item")
+
 });
 
 export const Star = createToken({
   name: 'Star',
   pattern: /\*/,
-  categories: [AnyTextFragment], // Can be part of text in template context (e.g., "* item")
+
 });
 
 export const Slash = createToken({
   name: 'Slash',
   pattern: /\//,
-  categories: [AnyTextFragment], // Can be part of text in template context (e.g., "and/or")
+
 });
 
 export const Mod = createToken({
   name: 'Mod',
   pattern: /%/,
-  categories: [AnyTextFragment], // Can be part of text in template context (e.g., "50%")
+
 });
 
 export const Question = createToken({
   name: 'Question',
   pattern: /\?/,
-  categories: [AnyTextFragment], // Can be part of text in template context (e.g., "Really?")
+
 });
 
 export const Not = createToken({
@@ -225,49 +225,49 @@ export const Not = createToken({
 export const And = createToken({
   name: 'And',
   pattern: /&&/,
-  categories: [AnyTextFragment], // Can be part of text in template context
+
 });
 
 export const Or = createToken({
   name: 'Or',
   pattern: /\|\|/,
-  categories: [AnyTextFragment], // Can be part of text in template context
+
 });
 
 export const Eq = createToken({
   name: 'Eq',
   pattern: /==/,
-  categories: [AnyTextFragment], // Can be part of text in template context
+
 });
 
 export const Ne = createToken({
   name: 'Ne',
   pattern: /!=/,
-  categories: [AnyTextFragment], // Can be part of text in template context
+
 });
 
 export const Lt = createToken({
   name: 'Lt',
   pattern: /</,
-  categories: [AnyTextFragment], // Can be part of text in template context (e.g., "< 5")
+
 });
 
 export const Le = createToken({
   name: 'Le',
   pattern: /<=/,
-  categories: [AnyTextFragment], // Can be part of text in template context
+
 });
 
 export const Gt = createToken({
   name: 'Gt',
   pattern: />/,
-  categories: [AnyTextFragment], // Can be part of text in template context (e.g., "> 5")
+
 });
 
 export const Ge = createToken({
   name: 'Ge',
   pattern: />=/,
-  categories: [AnyTextFragment], // Can be part of text in template context
+
 });
 
 export const Range = createToken({
@@ -385,10 +385,9 @@ export const TemplateText = createToken({
       if (startOffset >= len) return null;
 
       // current char cannot start with '#' or '$'
-      // Also cannot start with space/tab since Whitespace token handles those
-      // Newlines CAN start TemplateText since Newline token only matches actual newlines
+      // Newlines can be part of TemplateText, so don't exclude them here
       const c0 = text.charCodeAt(startOffset);
-      if (c0 === 35 /*#*/ || c0 === 36 /*$*/ || c0 === 32 /* */ || c0 === 9 /*\t*/) return null;
+      if (c0 === 35 /*#*/ || c0 === 36 /*$*/) return null;
 
       // Check if this is an escaped directive (e.g., \#end should be literal text)
       // If previous char is backslash, this might be escaped - but we still want to capture it as text
@@ -414,8 +413,8 @@ export const TemplateText = createToken({
         }
       }
 
-      // scan forward until next '#', '$', '=', '\', space, tab, or structural characters
-      // Include newlines in the text but NOT spaces/tabs (Whitespace token handles those)
+      // scan forward until next '#', '$', '=', '\', or structural characters
+      // Include spaces, tabs, and newlines in the text (they're part of the template output)
       // Note: Parentheses, brackets, and braces can be part of text, so we only stop
       // at them if they're immediately followed by something that looks like an expression
       let i = startOffset;
@@ -430,9 +429,8 @@ export const TemplateText = createToken({
             break;
           }
         }
-        // Always stop at: # $ space tab (but not newlines)
-        // Note: Don't stop at = because it's valid in template text like "x = y"
-        if (ch === 35 || ch === 36 || ch === 32 || ch === 9) break;
+        // Always stop at: # $ =
+        if (ch === 35 || ch === 36 || ch === 61) break;
         
         // For [ ] ( ) { }, in text contexts these are usually part of the text
         // Only stop if they're followed by $ or # which clearly start expressions
@@ -470,6 +468,14 @@ export const TemplateText = createToken({
       if (i === startOffset) return null;
 
       const image = text.slice(startOffset, i);
+
+      // If the matched text is only whitespace (spaces/tabs, no newlines),
+      // return null to let the Whitespace token match instead
+      // This ensures proper whitespace handling after directives
+      if (/^[ \t]+$/.test(image)) {
+        return null;
+      }
+
       const matched = [image] as unknown as RegExpExecArray;
       matched.index = startOffset;
       matched.input = text;
@@ -481,12 +487,12 @@ export const TemplateText = createToken({
 });
 
 // Whitespace and text
-// Note: Whitespace must be a token (not SKIPPED) for space gobbling
-// It's in AnyTextFragment category AND explicitly consumed in directive rules
+// Note: Whitespace is treated as text in template contexts
+// In Java, WHITESPACE is a real token that can be captured for space gobbling
 export const Whitespace = createToken({
   name: 'Whitespace',
   pattern: /[ \t]+/,
-  categories: [AnyTextFragment],
+  categories: [AnyTextFragment], // Treat as text so it's preserved
 });
 
 // Newlines: treat as text fragments so they're included in template output
@@ -569,15 +575,11 @@ export const allTokens: TokenType[] = [
   Semicolon,
   Hash,
 
-  // Whitespace must come before TemplateText to match in directive/expression contexts
-  // This ensures spaces in directives like "#set($x = 1)" are recognized as Whitespace tokens
+  // Whitespace must come before TemplateText to ensure proper tokenization
+  // This allows directives to have spaces between keywords and parentheses
   Whitespace,
 
-  // Newline must also come before TemplateText
-  Newline,
-
-  // Template text must come after all other tokens to avoid conflicts
-  // It will match remaining text that doesn't start with # or $
+  // Template text must come after whitespace but before other text-like tokens
   TemplateText,
 
   // Identifiers (after keywords)
@@ -587,7 +589,8 @@ export const allTokens: TokenType[] = [
   // It will still match in directive/expression contexts where TemplateText doesn't apply
   InKeyword,
 
-  // Category tokens
+  // Newline and categories
+  Newline,
   AnyTextFragment,
 ];
 
