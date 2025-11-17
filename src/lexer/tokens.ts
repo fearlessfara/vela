@@ -152,7 +152,7 @@ export const RBracket = createToken({
 export const Dot = createToken({
   name: 'Dot',
   pattern: /\./,
-
+  categories: [AnyTextFragment], // Can be part of text in template context (e.g., "...")
 });
 
 export const Comma = createToken({
@@ -170,14 +170,14 @@ export const Colon = createToken({
 export const Semicolon = createToken({
   name: 'Semicolon',
   pattern: /;/,
-
+  categories: [AnyTextFragment], // Can be part of text in template context
 });
 
 // Operators
 export const Assign = createToken({
   name: 'Assign',
   pattern: /=/,
-
+  categories: [AnyTextFragment], // Can be part of text in template context (e.g., "a = b")
 });
 
 export const Plus = createToken({
@@ -189,31 +189,31 @@ export const Plus = createToken({
 export const Minus = createToken({
   name: 'Minus',
   pattern: /-/,
-
+  categories: [AnyTextFragment], // Can be part of text in template context (e.g., "- item")
 });
 
 export const Star = createToken({
   name: 'Star',
   pattern: /\*/,
-
+  categories: [AnyTextFragment], // Can be part of text in template context (e.g., "* item")
 });
 
 export const Slash = createToken({
   name: 'Slash',
   pattern: /\//,
-
+  categories: [AnyTextFragment], // Can be part of text in template context (e.g., "and/or")
 });
 
 export const Mod = createToken({
   name: 'Mod',
   pattern: /%/,
-
+  categories: [AnyTextFragment], // Can be part of text in template context (e.g., "50%")
 });
 
 export const Question = createToken({
   name: 'Question',
   pattern: /\?/,
-
+  categories: [AnyTextFragment], // Can be part of text in template context (e.g., "Really?")
 });
 
 export const Not = createToken({
@@ -225,49 +225,49 @@ export const Not = createToken({
 export const And = createToken({
   name: 'And',
   pattern: /&&/,
-
+  categories: [AnyTextFragment], // Can be part of text in template context
 });
 
 export const Or = createToken({
   name: 'Or',
   pattern: /\|\|/,
-
+  categories: [AnyTextFragment], // Can be part of text in template context
 });
 
 export const Eq = createToken({
   name: 'Eq',
   pattern: /==/,
-
+  categories: [AnyTextFragment], // Can be part of text in template context
 });
 
 export const Ne = createToken({
   name: 'Ne',
   pattern: /!=/,
-
+  categories: [AnyTextFragment], // Can be part of text in template context
 });
 
 export const Lt = createToken({
   name: 'Lt',
   pattern: /</,
-
+  categories: [AnyTextFragment], // Can be part of text in template context (e.g., "< 5")
 });
 
 export const Le = createToken({
   name: 'Le',
   pattern: /<=/,
-
+  categories: [AnyTextFragment], // Can be part of text in template context
 });
 
 export const Gt = createToken({
   name: 'Gt',
   pattern: />/,
-
+  categories: [AnyTextFragment], // Can be part of text in template context (e.g., "> 5")
 });
 
 export const Ge = createToken({
   name: 'Ge',
   pattern: />=/,
-
+  categories: [AnyTextFragment], // Can be part of text in template context
 });
 
 export const Range = createToken({
@@ -430,8 +430,9 @@ export const TemplateText = createToken({
             break;
           }
         }
-        // Always stop at: # $ = space tab (but not newlines)
-        if (ch === 35 || ch === 36 || ch === 61 || ch === 32 || ch === 9) break;
+        // Always stop at: # $ space tab (but not newlines)
+        // Note: Don't stop at = because it's valid in template text like "x = y"
+        if (ch === 35 || ch === 36 || ch === 32 || ch === 9) break;
         
         // For [ ] ( ) { }, in text contexts these are usually part of the text
         // Only stop if they're followed by $ or # which clearly start expressions

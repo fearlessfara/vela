@@ -1,0 +1,14 @@
+{
+  "name": "Alice",
+  "user": {
+    "name": "Bob"
+  },
+  "items": ["first", "second", "third"],
+  "data": {
+    "user": {
+      "address": {
+        "city": "NYC"
+      }
+    }
+  }
+}

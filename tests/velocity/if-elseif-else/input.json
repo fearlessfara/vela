@@ -1,0 +1,7 @@
+{
+  "user": {
+    "name": "Bob",
+    "age": 30,
+    "premium": true
+  }
+}

@@ -1,0 +1,13 @@
+## Test #foreach directive
+#foreach($item in $items)
+  - $item
+#end
+
+Numbers:
+#foreach($num in [1, 2, 3, 4, 5])
+$num#if($foreach.hasNext), #end#end
+
+Loop info:
+#foreach($x in $items)
+[$foreach.index] $x (count: $foreach.count)#if($foreach.first) FIRST#end#if($foreach.last) LAST#end
+#end

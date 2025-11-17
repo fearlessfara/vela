@@ -1,0 +1,13 @@
+## Test macros
+#macro(greet $person)
+Hello, $person!
+#end
+
+#macro(add $x $y)
+$x + $y = #set($result = $x + $y)$result
+#end
+
+#greet("Alice")
+#greet("Bob")
+#add(5, 3)
+#add(10, 20)

@@ -350,8 +350,13 @@ export class VtlParser extends CstParser {
     ]));
     this.CONSUME(LParen);
     this.CONSUME(DollarRef, { LABEL: 'variable' });
+    // Optional whitespace after variable
+    this.MANY3(() => this.OR3([
+      { ALT: () => this.CONSUME1(Whitespace) },
+      { ALT: () => this.CONSUME1(Newline) },
+    ]));
     // "in" keyword: can be InKeyword token, TemplateText "in ", or Identifier "in"
-    this.OR2([
+    this.OR4([
       { ALT: () => this.CONSUME(InKeyword, { LABEL: 'inKeyword' }) },
       {
         GATE: () => {
@@ -376,6 +381,11 @@ export class VtlParser extends CstParser {
         },
       },
     ]);
+    // Optional whitespace after "in" keyword
+    this.MANY4(() => this.OR5([
+      { ALT: () => this.CONSUME2(Whitespace) },
+      { ALT: () => this.CONSUME2(Newline) },
+    ]));
     this.SUBRULE(this.expression, { LABEL: 'iterable' });
     this.CONSUME(RParen);
     this.MANY2({
@@ -399,7 +409,7 @@ export class VtlParser extends CstParser {
     });
     this.CONSUME(EndDirective, { LABEL: 'endKeyword' });
     // Capture optional whitespace after #end as postfix
-    this.OPTION1(() => this.CONSUME1(Whitespace, { LABEL: 'postfix' }));
+    this.OPTION1(() => this.CONSUME3(Whitespace, { LABEL: 'postfix' }));
   });
 
   // #break directive

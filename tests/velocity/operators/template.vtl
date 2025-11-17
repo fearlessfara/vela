@@ -1,0 +1,20 @@
+## Test operators
+Arithmetic:
+- Addition: $a + $b = #set($sum = $a + $b)$sum
+- Subtraction: $a - $b = #set($diff = $a - $b)$diff
+- Multiplication: $a * $b = #set($prod = $a * $b)$prod
+- Division: $a / $b = #set($quot = $a / $b)$quot
+- Modulo: $a % $b = #set($mod = $a % $b)$mod
+
+Comparison:
+- Equal: $a == $b = #if($a == $b)true#else false#end
+- Not equal: $a != $b = #if($a != $b)true#else false#end
+- Less than: $a < $b = #if($a < $b)true#else false#end
+- Greater than: $a > $b = #if($a > $b)true#else false#end
+- Less or equal: $a <= $b = #if($a <= $b)true#else false#end
+- Greater or equal: $a >= $b = #if($a >= $b)true#else false#end
+
+Logical:
+- AND: $x && $y = #if($x && $y)true#else false#end
+- OR: $x || $y = #if($x || $y)true#else false#end
+- NOT: !$x = #if(!$x)true#else false#end
