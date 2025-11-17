@@ -535,124 +535,208 @@ export class VtlParser extends CstParser {
 
   logicalOr = this.RULE('logicalOr', () => {
     this.SUBRULE(this.logicalAnd);
-    this.MANY1(() => {
-      // Allow whitespace before operator
-      this.MANY2(() => this.OR1([
-        { ALT: () => this.CONSUME1(Whitespace) },
-        { ALT: () => this.CONSUME1(Newline) },
-      ]));
-      this.CONSUME(Or);
-      // Allow whitespace after operator
-      this.MANY3(() => this.OR2([
-        { ALT: () => this.CONSUME2(Whitespace) },
-        { ALT: () => this.CONSUME2(Newline) },
-      ]));
-      this.SUBRULE2(this.logicalAnd);
+    this.MANY1({
+      // Only enter loop if there's an || operator (possibly after whitespace)
+      GATE: () => {
+        let i = 1;
+        let la = this.LA(i);
+        // Skip whitespace tokens
+        while (la && (la.tokenType === Whitespace || la.tokenType === Newline)) {
+          i++;
+          la = this.LA(i);
+        }
+        // Check if we found ||
+        return la && la.tokenType === Or;
+      },
+      DEF: () => {
+        // Allow whitespace before operator
+        this.MANY2(() => this.OR1([
+          { ALT: () => this.CONSUME1(Whitespace) },
+          { ALT: () => this.CONSUME1(Newline) },
+        ]));
+        this.CONSUME(Or);
+        // Allow whitespace after operator
+        this.MANY3(() => this.OR2([
+          { ALT: () => this.CONSUME2(Whitespace) },
+          { ALT: () => this.CONSUME2(Newline) },
+        ]));
+        this.SUBRULE2(this.logicalAnd);
+      },
     });
   });
 
   logicalAnd = this.RULE('logicalAnd', () => {
     this.SUBRULE(this.equality);
-    this.MANY1(() => {
-      // Allow whitespace before operator
-      this.MANY2(() => this.OR1([
-        { ALT: () => this.CONSUME1(Whitespace) },
-        { ALT: () => this.CONSUME1(Newline) },
-      ]));
-      this.CONSUME(And);
-      // Allow whitespace after operator
-      this.MANY3(() => this.OR2([
-        { ALT: () => this.CONSUME2(Whitespace) },
-        { ALT: () => this.CONSUME2(Newline) },
-      ]));
-      this.SUBRULE2(this.equality);
+    this.MANY1({
+      // Only enter loop if there's an && operator (possibly after whitespace)
+      GATE: () => {
+        let i = 1;
+        let la = this.LA(i);
+        // Skip whitespace tokens
+        while (la && (la.tokenType === Whitespace || la.tokenType === Newline)) {
+          i++;
+          la = this.LA(i);
+        }
+        // Check if we found &&
+        return la && la.tokenType === And;
+      },
+      DEF: () => {
+        // Allow whitespace before operator
+        this.MANY2(() => this.OR1([
+          { ALT: () => this.CONSUME1(Whitespace) },
+          { ALT: () => this.CONSUME1(Newline) },
+        ]));
+        this.CONSUME(And);
+        // Allow whitespace after operator
+        this.MANY3(() => this.OR2([
+          { ALT: () => this.CONSUME2(Whitespace) },
+          { ALT: () => this.CONSUME2(Newline) },
+        ]));
+        this.SUBRULE2(this.equality);
+      },
     });
   });
 
   equality = this.RULE('equality', () => {
     this.SUBRULE(this.relational);
-    this.MANY1(() => {
-      // Allow whitespace before operator
-      this.MANY2(() => this.OR1([
-        { ALT: () => this.CONSUME1(Whitespace) },
-        { ALT: () => this.CONSUME1(Newline) },
-      ]));
-      this.OR2([
-        { ALT: () => this.CONSUME(Eq) },
-        { ALT: () => this.CONSUME(Ne) },
-      ]);
-      // Allow whitespace after operator
-      this.MANY3(() => this.OR3([
-        { ALT: () => this.CONSUME2(Whitespace) },
-        { ALT: () => this.CONSUME2(Newline) },
-      ]));
-      this.SUBRULE2(this.relational);
+    this.MANY1({
+      // Only enter loop if there's an == or != operator (possibly after whitespace)
+      GATE: () => {
+        let i = 1;
+        let la = this.LA(i);
+        // Skip whitespace tokens
+        while (la && (la.tokenType === Whitespace || la.tokenType === Newline)) {
+          i++;
+          la = this.LA(i);
+        }
+        // Check if we found == or !=
+        return la && (la.tokenType === Eq || la.tokenType === Ne);
+      },
+      DEF: () => {
+        // Allow whitespace before operator
+        this.MANY2(() => this.OR1([
+          { ALT: () => this.CONSUME1(Whitespace) },
+          { ALT: () => this.CONSUME1(Newline) },
+        ]));
+        this.OR2([
+          { ALT: () => this.CONSUME(Eq) },
+          { ALT: () => this.CONSUME(Ne) },
+        ]);
+        // Allow whitespace after operator
+        this.MANY3(() => this.OR3([
+          { ALT: () => this.CONSUME2(Whitespace) },
+          { ALT: () => this.CONSUME2(Newline) },
+        ]));
+        this.SUBRULE2(this.relational);
+      },
     });
   });
 
   relational = this.RULE('relational', () => {
     this.SUBRULE(this.additive);
-    this.MANY1(() => {
-      // Allow whitespace before operator
-      this.MANY2(() => this.OR1([
-        { ALT: () => this.CONSUME1(Whitespace) },
-        { ALT: () => this.CONSUME1(Newline) },
-      ]));
-      this.OR2([
-        { ALT: () => this.CONSUME(Lt) },
-        { ALT: () => this.CONSUME(Le) },
-        { ALT: () => this.CONSUME(Gt) },
-        { ALT: () => this.CONSUME(Ge) },
-      ]);
-      // Allow whitespace after operator
-      this.MANY3(() => this.OR3([
-        { ALT: () => this.CONSUME2(Whitespace) },
-        { ALT: () => this.CONSUME2(Newline) },
-      ]));
-      this.SUBRULE2(this.additive);
+    this.MANY1({
+      // Only enter loop if there's a relational operator (possibly after whitespace)
+      GATE: () => {
+        let i = 1;
+        let la = this.LA(i);
+        // Skip whitespace tokens
+        while (la && (la.tokenType === Whitespace || la.tokenType === Newline)) {
+          i++;
+          la = this.LA(i);
+        }
+        // Check if we found a <, <=, >, or >= operator
+        return la && (la.tokenType === Lt || la.tokenType === Le || la.tokenType === Gt || la.tokenType === Ge);
+      },
+      DEF: () => {
+        // Allow whitespace before operator
+        this.MANY2(() => this.OR1([
+          { ALT: () => this.CONSUME1(Whitespace) },
+          { ALT: () => this.CONSUME1(Newline) },
+        ]));
+        this.OR2([
+          { ALT: () => this.CONSUME(Lt) },
+          { ALT: () => this.CONSUME(Le) },
+          { ALT: () => this.CONSUME(Gt) },
+          { ALT: () => this.CONSUME(Ge) },
+        ]);
+        // Allow whitespace after operator
+        this.MANY3(() => this.OR3([
+          { ALT: () => this.CONSUME2(Whitespace) },
+          { ALT: () => this.CONSUME2(Newline) },
+        ]));
+        this.SUBRULE2(this.additive);
+      },
     });
   });
 
   additive = this.RULE('additive', () => {
     this.SUBRULE(this.multiplicative);
-    this.MANY1(() => {
-      // Allow whitespace before operator
-      this.MANY2(() => this.OR1([
-        { ALT: () => this.CONSUME1(Whitespace) },
-        { ALT: () => this.CONSUME1(Newline) },
-      ]));
-      this.OR2([
-        { ALT: () => this.CONSUME(Plus) },
-        { ALT: () => this.CONSUME(Minus) },
-      ]);
-      // Allow whitespace after operator
-      this.MANY3(() => this.OR3([
-        { ALT: () => this.CONSUME2(Whitespace) },
-        { ALT: () => this.CONSUME2(Newline) },
-      ]));
-      this.SUBRULE2(this.multiplicative);
+    this.MANY1({
+      // Only enter loop if there's a + or - operator (possibly after whitespace)
+      GATE: () => {
+        let i = 1;
+        let la = this.LA(i);
+        // Skip whitespace tokens
+        while (la && (la.tokenType === Whitespace || la.tokenType === Newline)) {
+          i++;
+          la = this.LA(i);
+        }
+        // Check if we found a + or - operator
+        return la && (la.tokenType === Plus || la.tokenType === Minus);
+      },
+      DEF: () => {
+        // Allow whitespace before operator
+        this.MANY2(() => this.OR1([
+          { ALT: () => this.CONSUME1(Whitespace) },
+          { ALT: () => this.CONSUME1(Newline) },
+        ]));
+        this.OR2([
+          { ALT: () => this.CONSUME(Plus) },
+          { ALT: () => this.CONSUME(Minus) },
+        ]);
+        // Allow whitespace after operator
+        this.MANY3(() => this.OR3([
+          { ALT: () => this.CONSUME2(Whitespace) },
+          { ALT: () => this.CONSUME2(Newline) },
+        ]));
+        this.SUBRULE2(this.multiplicative);
+      },
     });
   });
 
   multiplicative = this.RULE('multiplicative', () => {
     this.SUBRULE(this.unary);
-    this.MANY1(() => {
-      // Allow whitespace before operator
-      this.MANY2(() => this.OR1([
-        { ALT: () => this.CONSUME1(Whitespace) },
-        { ALT: () => this.CONSUME1(Newline) },
-      ]));
-      this.OR2([
-        { ALT: () => this.CONSUME(Star) },
-        { ALT: () => this.CONSUME(Slash) },
-        { ALT: () => this.CONSUME(Mod) },
-      ]);
-      // Allow whitespace after operator
-      this.MANY3(() => this.OR3([
-        { ALT: () => this.CONSUME2(Whitespace) },
-        { ALT: () => this.CONSUME2(Newline) },
-      ]));
-      this.SUBRULE2(this.unary);
+    this.MANY1({
+      // Only enter loop if there's a *, /, or % operator (possibly after whitespace)
+      GATE: () => {
+        let i = 1;
+        let la = this.LA(i);
+        // Skip whitespace tokens
+        while (la && (la.tokenType === Whitespace || la.tokenType === Newline)) {
+          i++;
+          la = this.LA(i);
+        }
+        // Check if we found a *, /, or % operator
+        return la && (la.tokenType === Star || la.tokenType === Slash || la.tokenType === Mod);
+      },
+      DEF: () => {
+        // Allow whitespace before operator
+        this.MANY2(() => this.OR1([
+          { ALT: () => this.CONSUME1(Whitespace) },
+          { ALT: () => this.CONSUME1(Newline) },
+        ]));
+        this.OR2([
+          { ALT: () => this.CONSUME(Star) },
+          { ALT: () => this.CONSUME(Slash) },
+          { ALT: () => this.CONSUME(Mod) },
+        ]);
+        // Allow whitespace after operator
+        this.MANY3(() => this.OR3([
+          { ALT: () => this.CONSUME2(Whitespace) },
+          { ALT: () => this.CONSUME2(Newline) },
+        ]));
+        this.SUBRULE2(this.unary);
+      },
     });
   });
 
