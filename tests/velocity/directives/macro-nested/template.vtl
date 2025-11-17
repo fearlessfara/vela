@@ -1,0 +1,8 @@
+#macro(outer $x)
+Outer: $x
+#macro(inner $y)
+Inner: $y
+#end
+#inner($x)
+#end
+#outer("test")
