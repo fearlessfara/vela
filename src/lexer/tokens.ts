@@ -108,7 +108,7 @@ export const InKeyword = createToken({
 // Interpolation
 export const InterpStart = createToken({
   name: 'InterpStart',
-  pattern: /\$\{/,
+  pattern: /\$\{(?=[a-zA-Z_])/,  // Only match ${ when followed by an identifier (Java Velocity compatibility)
 });
 
 

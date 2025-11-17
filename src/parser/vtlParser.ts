@@ -191,7 +191,9 @@ export class VtlParser extends CstParser {
       {
         ALT: () => {
           this.CONSUME(InterpStart);
-          this.SUBRULE1(this.expression);
+          // Inside ${}, only allow bare identifier chains (Java Velocity doesn't support expressions here)
+          // Examples: ${user.name}, ${items[0]}, ${user.getName()}
+          this.SUBRULE1(this.bareVarChain);
           this.CONSUME(RCurly);
         },
       },
@@ -210,6 +212,12 @@ export class VtlParser extends CstParser {
   // Variable chain: $var.suffix()[] etc.
   varChain = this.RULE('varChain', () => {
     this.SUBRULE(this.variableReference);
+    this.MANY(() => this.SUBRULE(this.suffix));
+  });
+
+  // Bare variable chain (for inside ${}): user.name, items[0], etc.
+  bareVarChain = this.RULE('bareVarChain', () => {
+    this.CONSUME(Identifier, { LABEL: 'base' });
     this.MANY(() => this.SUBRULE(this.suffix));
   });
 

@@ -376,17 +376,17 @@ function textToAst(text: CstNode): Text {
 }
 
 function interpolationToAst(interp: CstNode): Interpolation {
-  if (interp.children.expression) {
-    return {
-      type: 'Interpolation',
-      expression: expressionToAst(interp.children.expression[0] as CstNode),
-      location: getLocation(interp),
-    };
-  }
   if (interp.children.varChain) {
     return {
       type: 'Interpolation',
       expression: varChainToAst(interp.children.varChain[0] as CstNode),
+      location: getLocation(interp),
+    };
+  }
+  if (interp.children.bareVarChain) {
+    return {
+      type: 'Interpolation',
+      expression: bareVarChainToAst(interp.children.bareVarChain[0] as CstNode),
       location: getLocation(interp),
     };
   }
@@ -395,10 +395,10 @@ function interpolationToAst(interp: CstNode): Interpolation {
 
 function varChainToAst(varChain: CstNode): Expression {
   let expr: Expression = variableReferenceToAst(varChain.children.variableReference![0] as CstNode);
-  
+
   // Apply suffixes in order
   const suffixes = varChain.children.suffix || [];
-  
+
   for (const s of suffixes) {
     const sNode = s as CstNode;
     const c: any = sNode.children;
@@ -426,7 +426,50 @@ function varChainToAst(varChain: CstNode): Expression {
       } as ArrayAccess;
     }
   }
-  
+
+  return expr;
+}
+
+function bareVarChainToAst(bareVarChain: CstNode): Expression {
+  // Start with the base identifier
+  const baseToken = (bareVarChain.children.base![0] as any).image;
+  let expr: Expression = {
+    type: 'VariableReference',
+    name: baseToken,
+    location: getLocation(bareVarChain),
+  } as VariableReference;
+
+  // Apply suffixes in order (same as varChainToAst)
+  const suffixes = bareVarChain.children.suffix || [];
+
+  for (const s of suffixes) {
+    const sNode = s as CstNode;
+    const c: any = sNode.children;
+    if (c.Dot) {
+      expr = {
+        type: 'MemberAccess',
+        object: expr,
+        property: (c.prop[0] as any).image,
+        location: getLocation(s as any),
+      } as MemberAccess;
+    } else if (c.LParen) {
+      const args = (c.args ?? []).map((e: any) => expressionToAst(e));
+      expr = {
+        type: 'FunctionCall',
+        callee: expr,
+        arguments: args,
+        location: getLocation(s as any),
+      } as FunctionCall;
+    } else if (c.LBracket) {
+      expr = {
+        type: 'ArrayAccess',
+        object: expr,
+        index: expressionToAst(c.index[0] as CstNode),
+        location: getLocation(s as any),
+      } as ArrayAccess;
+    }
+  }
+
   return expr;
 }
 
