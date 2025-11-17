@@ -43,6 +43,7 @@ export interface Text extends BaseNode {
 export interface Interpolation extends BaseNode {
   type: 'Interpolation';
   expression: Expression;
+  braced?: boolean; // true if ${...} syntax, false/undefined if $var syntax
 }
 
 // Directives

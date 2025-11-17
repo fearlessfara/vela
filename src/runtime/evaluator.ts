@@ -116,20 +116,115 @@ export class VtlEvaluator {
     this.stringBuilder.appendString(text.value);
   }
 
+  /**
+   * Check if an expression is valid for interpolation.
+   * Per Java Velocity behavior, only variable references and member access are valid.
+   * Arbitrary expressions like ${1 + 2} are not valid and should be output literally.
+   */
+  private isValidInterpolationExpression(expr: any): boolean {
+    return expr.type === 'VariableReference' ||
+           expr.type === 'MemberAccess' ||
+           expr.type === 'FunctionCall' ||
+           expr.type === 'ArrayAccess';
+  }
+
   private evaluateInterpolation(interp: Interpolation): void {
-    const value = this.evaluateExpression(interp.expression);
-    // If the value is null, output the literal reference (Java Velocity behavior)
-    if (value === null) {
-      this.stringBuilder.appendString(this.expressionToLiteralReference(interp.expression));
+    // Check if this is a valid interpolation expression
+    // Java Velocity only evaluates variable references, property access, method calls, and array access
+    // Other expressions like ${1 + 2 + 3} are output literally as ${1 + 2 + 3}
+    if (!this.isValidInterpolationExpression(interp.expression)) {
+      // Output literally with ${...} wrapping
+      this.stringBuilder.appendString('${');
+      this.stringBuilder.appendString(this.expressionToString(interp.expression));
+      this.stringBuilder.appendString('}');
       return;
     }
+
+    const value = this.evaluateExpression(interp.expression);
+
+    // Handle null/undefined values:
+    // - undefined from missing variable:
+    //   - Braced ${missing}: output literally as ${missing}
+    //   - Unbraced $missing: output empty string
+    // - null from expression evaluation (e.g., $name.length on string, or $obj.missing):
+    //   - Both braced and unbraced: output literally
+    if (value === null) {
+      // Expression evaluated to null (e.g., property doesn't exist on primitive)
+      // Output literally for both braced and unbraced
+      if (interp.braced) {
+        this.stringBuilder.appendString('${');
+        this.stringBuilder.appendString(this.expressionToString(interp.expression));
+        this.stringBuilder.appendString('}');
+      } else {
+        // For unbraced, output with $ prefix
+        this.stringBuilder.appendString(this.expressionToLiteralReference(interp.expression));
+      }
+      return;
+    }
+
+    if (value === undefined) {
+      // Variable doesn't exist
+      if (interp.braced) {
+        // Braced ${missing}: output literally as ${missing}
+        this.stringBuilder.appendString('${');
+        this.stringBuilder.appendString(this.expressionToString(interp.expression));
+        this.stringBuilder.appendString('}');
+        return;
+      }
+      // Unbraced $missing: output empty string (handled by appendInterpolatedValue)
+    }
+
     this.appendInterpolatedValue(value);
   }
 
   /**
-   * Convert an expression to its literal reference form (e.g., "$name.length")
-   * Used when a property/method doesn't exist and should be output literally
+   * Convert an expression to its string representation for literal output
+   * This is used when outputting expressions literally in ${...} syntax
    */
+  private expressionToString(expr: any): string {
+    if (expr.type === 'Literal') {
+      if (typeof expr.value === 'string') {
+        return `"${expr.value}"`;
+      }
+      return String(expr.value);
+    }
+    if (expr.type === 'BinaryOperation') {
+      const left = this.expressionToString(expr.left);
+      const right = this.expressionToString(expr.right);
+      return `${left} ${expr.operator} ${right}`;
+    }
+    if (expr.type === 'UnaryOperation') {
+      const operand = this.expressionToString(expr.operand);
+      return `${expr.operator}${operand}`;
+    }
+    if (expr.type === 'VariableReference') {
+      // For ${...} context, don't include the $ prefix
+      return expr.name;
+    }
+    if (expr.type === 'MemberAccess') {
+      const objectStr = this.expressionToString(expr.object);
+      return `${objectStr}.${expr.property}`;
+    }
+    if (expr.type === 'FunctionCall') {
+      const calleeStr = this.expressionToString(expr.callee);
+      const argsStr = expr.arguments.map((arg: any) => this.expressionToString(arg)).join(', ');
+      return `${calleeStr}(${argsStr})`;
+    }
+    if (expr.type === 'ArrayAccess') {
+      const arrayStr = this.expressionToString(expr.array);
+      const indexStr = this.expressionToString(expr.index);
+      return `${arrayStr}[${indexStr}]`;
+    }
+    // Fallback
+    return '';
+  }
+
+  /**
+   * Convert an expression to its literal reference form (e.g., "$name.length")
+   * This was previously used but is now replaced by expressionToString for ${} context
+   * Kept for potential future use with non-braced interpolations
+   */
+  // @ts-ignore - Intentionally unused for now
   private expressionToLiteralReference(expr: any): string {
     if (expr.type === 'VariableReference') {
       return '$' + (expr.quiet ? '!' : '') + expr.name;
@@ -211,6 +306,12 @@ export class VtlEvaluator {
       }
     }
 
+    // Don't write postfix if #break or #stop was executed within the if block
+    // The break/stop will handle its own postfix, and the #if should not add more
+    if (this.shouldBreak || this.shouldStop) {
+      return;
+    }
+
     // Write postfix after directive based on gobbling mode
     this.writePostfix(ifDirective);
   }
@@ -290,6 +391,10 @@ export class VtlEvaluator {
 
         for (const segment of forEachDirective.body) {
           this.evaluateSegment(segment);
+          // Check if #break or #stop was executed - stop processing segments immediately
+          if (this.shouldBreak || this.shouldStop) {
+            break;
+          }
         }
       }
     } finally {
@@ -302,10 +407,11 @@ export class VtlEvaluator {
   }
 
   private evaluateBreakDirective(breakDirective: Segment): void {
-    // Write prefix/postfix for break directive
+    // Write prefix for break directive
     this.writePrefix(breakDirective);
     this.shouldBreak = true;
-    this.writePostfix(breakDirective);
+    // Don't write postfix for break directive - it should be gobbled
+    // The parent directive (#if, #foreach, etc.) will handle postfix gobbling
   }
 
   private evaluateStopDirective(stopDirective: Segment): void {
@@ -500,10 +606,12 @@ export class VtlEvaluator {
       if (ref.quiet) {
         return '';
       }
-      // In Velocity, undefined variables return empty string
-      return '';
+      // For non-quiet undefined variables, return undefined (not empty string)
+      // This allows braced interpolations like ${missing} to detect and output literally
+      // While unbraced $missing will be handled in evaluateInterpolation to output empty
+      return undefined;
     }
-    
+
     return value;
   }
 

@@ -108,7 +108,7 @@ export const InKeyword = createToken({
 // Interpolation
 export const InterpStart = createToken({
   name: 'InterpStart',
-  pattern: /\$\{(?=[a-zA-Z_])/,  // Only match ${ when followed by an identifier (Java Velocity compatibility)
+  pattern: /\$\{/,
 });
 
 
@@ -152,7 +152,7 @@ export const RBracket = createToken({
 export const Dot = createToken({
   name: 'Dot',
   pattern: /\./,
-  categories: [AnyTextFragment], // Can be part of text in template context (e.g., "...")
+
 });
 
 export const Comma = createToken({
@@ -170,104 +170,313 @@ export const Colon = createToken({
 export const Semicolon = createToken({
   name: 'Semicolon',
   pattern: /;/,
-  categories: [AnyTextFragment], // Can be part of text in template context
+
 });
 
 // Operators
 export const Assign = createToken({
   name: 'Assign',
-  pattern: /=/,
-  categories: [AnyTextFragment], // Can be part of text in template context (e.g., "a = b")
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text[offset] !== '=') return null;
+      // Only match = if we're in an expression context
+      // Note: = is special in #set($x = ...) but should still only match in parens
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['='] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
+
+/**
+ * Helper function to determine if we're in an expression context
+ * (inside directive parentheses, ${...} braces, or [...] array literals)
+ *
+ * Expression contexts are:
+ * - Inside ( ) of directives: #set(...), #if(...), #foreach(...)
+ * - Inside ${ } braces
+ * - Inside [ ] array literals
+ *
+ * @param text Full input text
+ * @param offset Current lexer offset
+ * @returns true if in expression context, false if in template text context
+ */
+function isInExpressionContext(text: string, offset: number): boolean {
+  // Count unclosed delimiters by scanning backwards
+  let parenDepth = 0;
+  let braceDepth = 0;
+  let bracketDepth = 0;
+  let inString = false;
+  let stringChar: string | null = null;
+
+  // Scan backwards from current position
+  for (let i = offset - 1; i >= 0; i--) {
+    const ch = text[i];
+
+    // Handle strings - operators inside strings are not expression operators
+    if (ch === '"' || ch === "'") {
+      if (!inString) {
+        inString = true;
+        stringChar = ch;
+      } else if (ch === stringChar && text[i - 1] !== '\\') {
+        inString = false;
+        stringChar = null;
+      }
+      continue;
+    }
+
+    if (inString) continue;
+
+    // Track delimiter depth
+    if (ch === ')') parenDepth++;
+    else if (ch === '(') parenDepth--;
+    else if (ch === '}') braceDepth++;
+    else if (ch === '{') braceDepth--;
+    else if (ch === ']') bracketDepth++;
+    else if (ch === '[') bracketDepth--;
+
+    // If we find an unclosed delimiter, we're in expression context
+    if (parenDepth < 0 || braceDepth < 0 || bracketDepth < 0) {
+      return true;
+    }
+  }
+
+  return false;
+}
 
 export const Plus = createToken({
   name: 'Plus',
-  pattern: /\+/,
-  categories: [AnyTextFragment], // Can be part of text in template context
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text[offset] !== '+') return null;
+      // Only match + if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['+'] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
 
 export const Minus = createToken({
   name: 'Minus',
-  pattern: /-/,
-  categories: [AnyTextFragment], // Can be part of text in template context (e.g., "- item")
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text[offset] !== '-') return null;
+      // Only match - if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['-'] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
 
 export const Star = createToken({
   name: 'Star',
-  pattern: /\*/,
-  categories: [AnyTextFragment], // Can be part of text in template context (e.g., "* item")
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text[offset] !== '*') return null;
+      // Only match * if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['*'] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
 
 export const Slash = createToken({
   name: 'Slash',
-  pattern: /\//,
-  categories: [AnyTextFragment], // Can be part of text in template context (e.g., "and/or")
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text[offset] !== '/') return null;
+      // Only match / if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['/'] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
 
 export const Mod = createToken({
   name: 'Mod',
-  pattern: /%/,
-  categories: [AnyTextFragment], // Can be part of text in template context (e.g., "50%")
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text[offset] !== '%') return null;
+      // Only match % if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['%'] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
 
 export const Question = createToken({
   name: 'Question',
   pattern: /\?/,
-  categories: [AnyTextFragment], // Can be part of text in template context (e.g., "Really?")
+
 });
 
 export const Not = createToken({
   name: 'Not',
-  pattern: /!/,
-  categories: [AnyTextFragment], // Can be part of text in template context
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text[offset] !== '!') return null;
+      // Don't match ! if followed by = (that's part of !=)
+      if (text[offset + 1] === '=') return null;
+      // Only match ! if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['!'] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
 
 export const And = createToken({
   name: 'And',
-  pattern: /&&/,
-  categories: [AnyTextFragment], // Can be part of text in template context
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text.substr(offset, 2) !== '&&') return null;
+      // Only match && if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['&&'] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
 
 export const Or = createToken({
   name: 'Or',
-  pattern: /\|\|/,
-  categories: [AnyTextFragment], // Can be part of text in template context
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text.substr(offset, 2) !== '||') return null;
+      // Only match || if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['||'] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
 
 export const Eq = createToken({
   name: 'Eq',
-  pattern: /==/,
-  categories: [AnyTextFragment], // Can be part of text in template context
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text.substr(offset, 2) !== '==') return null;
+      // Only match == if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['=='] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
 
 export const Ne = createToken({
   name: 'Ne',
-  pattern: /!=/,
-  categories: [AnyTextFragment], // Can be part of text in template context
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text.substr(offset, 2) !== '!=') return null;
+      // Only match != if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['!='] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
 
 export const Lt = createToken({
   name: 'Lt',
-  pattern: /</,
-  categories: [AnyTextFragment], // Can be part of text in template context (e.g., "< 5")
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text[offset] !== '<') return null;
+      // Only match < if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['<'] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
 
 export const Le = createToken({
   name: 'Le',
-  pattern: /<=/,
-  categories: [AnyTextFragment], // Can be part of text in template context
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text.substr(offset, 2) !== '<=') return null;
+      // Only match <= if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['<='] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
 
 export const Gt = createToken({
   name: 'Gt',
-  pattern: />/,
-  categories: [AnyTextFragment], // Can be part of text in template context (e.g., "> 5")
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text[offset] !== '>') return null;
+      // Only match > if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['>'] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
 
 export const Ge = createToken({
   name: 'Ge',
-  pattern: />=/,
-  categories: [AnyTextFragment], // Can be part of text in template context
+  pattern: {
+    exec: (text: string, offset: number) => {
+      if (text.substr(offset, 2) !== '>=') return null;
+      // Only match >= if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['>='] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
 });
 
 export const Range = createToken({
@@ -335,6 +544,14 @@ export const MacroDirective = createToken({
   pattern: /#macro\b/,
 });
 
+// Macro invocation: #macroName (must come after directive keywords to avoid conflicts)
+export const MacroInvocationStart = createToken({
+  name: 'MacroInvocationStart',
+  pattern: /#[a-zA-Z_][a-zA-Z0-9_]*/,
+  // This will match #<identifier>, but directive keywords like #if, #macro will match first
+  // because they are defined earlier in the token list
+});
+
 export const EvaluateDirective = createToken({
   name: 'EvaluateDirective',
   pattern: /#evaluate\b/,
@@ -385,10 +602,9 @@ export const TemplateText = createToken({
       if (startOffset >= len) return null;
 
       // current char cannot start with '#' or '$'
-      // Also cannot start with space/tab since Whitespace token handles those
-      // Newlines CAN start TemplateText since Newline token only matches actual newlines
+      // Newlines can be part of TemplateText, so don't exclude them here
       const c0 = text.charCodeAt(startOffset);
-      if (c0 === 35 /*#*/ || c0 === 36 /*$*/ || c0 === 32 /* */ || c0 === 9 /*\t*/) return null;
+      if (c0 === 35 /*#*/ || c0 === 36 /*$*/) return null;
 
       // Check if this is an escaped directive (e.g., \#end should be literal text)
       // If previous char is backslash, this might be escaped - but we still want to capture it as text
@@ -414,8 +630,8 @@ export const TemplateText = createToken({
         }
       }
 
-      // scan forward until next '#', '$', '=', '\', space, tab, or structural characters
-      // Include newlines in the text but NOT spaces/tabs (Whitespace token handles those)
+      // scan forward until next '#', '$', '=', '\', or structural characters
+      // Include spaces, tabs, and newlines in the text (they're part of the template output)
       // Note: Parentheses, brackets, and braces can be part of text, so we only stop
       // at them if they're immediately followed by something that looks like an expression
       let i = startOffset;
@@ -430,26 +646,13 @@ export const TemplateText = createToken({
             break;
           }
         }
-        // Always stop at: # $ space tab (but not newlines)
-        // Note: Don't stop at = because it's valid in template text like "x = y"
-        if (ch === 35 || ch === 36 || ch === 32 || ch === 9) break;
-        
-        // For [ ] ( ) { }, in text contexts these are usually part of the text
-        // Only stop if they're followed by $ or # which clearly start expressions
-        // Note: In VTL, expressions like ($foo) only appear in directive contexts like #if($foo)
-        // In plain text, parentheses are just text characters
-        if (ch === 91 || ch === 93 || ch === 40 || ch === 41 || ch === 123 || ch === 125) {
-          // Check next character - only stop if it's $ or # (expression markers)
-          if (i + 1 < len) {
-            const nextCh = text.charCodeAt(i + 1);
-            if (nextCh === 36 || nextCh === 35) { // $ or #
-              // Might be start of expression - stop here
-              break;
-            }
-            // Otherwise, include the paren/bracket/brace as text and continue
-          }
-          // Include this character (paren/bracket/brace) in the text
-          // The loop will increment i and continue
+        // Always stop at: # $ [ ] ( ) { }
+        // These are all special characters in Velocity and should be their own tokens
+        // Note: = is no longer in this list because it's now context-aware and only
+        // matches in expression contexts. In template text, = is just a regular character.
+        if (ch === 35 || ch === 36 ||
+            ch === 91 || ch === 93 || ch === 40 || ch === 41 || ch === 123 || ch === 125) {
+          break;
         }
         // Stop at comma only if it's not followed by space (likely part of expression)
         if (ch === 44) { // comma
@@ -470,6 +673,14 @@ export const TemplateText = createToken({
       if (i === startOffset) return null;
 
       const image = text.slice(startOffset, i);
+
+      // If the matched text is only whitespace (spaces/tabs, no newlines),
+      // return null to let the Whitespace token match instead
+      // This ensures proper whitespace handling after directives
+      if (/^[ \t]+$/.test(image)) {
+        return null;
+      }
+
       const matched = [image] as unknown as RegExpExecArray;
       matched.index = startOffset;
       matched.input = text;
@@ -481,12 +692,12 @@ export const TemplateText = createToken({
 });
 
 // Whitespace and text
-// Note: Whitespace must be a token (not SKIPPED) for space gobbling
-// It's in AnyTextFragment category AND explicitly consumed in directive rules
+// Note: Whitespace is treated as text in template contexts
+// In Java, WHITESPACE is a real token that can be captured for space gobbling
 export const Whitespace = createToken({
   name: 'Whitespace',
   pattern: /[ \t]+/,
-  categories: [AnyTextFragment],
+  categories: [AnyTextFragment], // Treat as text so it's preserved
 });
 
 // Newlines: treat as text fragments so they're included in template output
@@ -522,6 +733,9 @@ export const allTokens: TokenType[] = [
   ParseDirective,
   IncludeDirective,
   EndDirective,
+
+  // Macro invocations (must come after directive keywords)
+  MacroInvocationStart,
 
   // References
   QuietRef,
@@ -569,15 +783,11 @@ export const allTokens: TokenType[] = [
   Semicolon,
   Hash,
 
-  // Whitespace must come before TemplateText to match in directive/expression contexts
-  // This ensures spaces in directives like "#set($x = 1)" are recognized as Whitespace tokens
+  // Whitespace must come before TemplateText to ensure proper tokenization
+  // This allows directives to have spaces between keywords and parentheses
   Whitespace,
 
-  // Newline must also come before TemplateText
-  Newline,
-
-  // Template text must come after all other tokens to avoid conflicts
-  // It will match remaining text that doesn't start with # or $
+  // Template text must come after whitespace but before other text-like tokens
   TemplateText,
 
   // Identifiers (after keywords)
@@ -587,7 +797,8 @@ export const allTokens: TokenType[] = [
   // It will still match in directive/expression contexts where TemplateText doesn't apply
   InKeyword,
 
-  // Category tokens
+  // Newline and categories
+  Newline,
   AnyTextFragment,
 ];
 

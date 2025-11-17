@@ -10,7 +10,6 @@ import {
   Identifier,
   DollarRef,
   QuietRef,
-  InKeyword,
   InterpStart,
   LCurly,
   RCurly,
@@ -38,7 +37,6 @@ import {
   Ge,
   Question,
   Range,
-  Hash,
   IfDirective,
   ElseIfDirective,
   ElseDirective,
@@ -47,6 +45,7 @@ import {
   BreakDirective,
   StopDirective,
   MacroDirective,
+  MacroInvocationStart,
   EvaluateDirective,
   ParseDirective,
   IncludeDirective,
@@ -166,8 +165,7 @@ export class VtlParser extends CstParser {
             t === IfDirective || t === ElseIfDirective || t === ElseDirective ||
             t === SetDirective || t === ForEachDirective || t === BreakDirective ||
             t === StopDirective || t === MacroDirective || t === EndDirective ||
-            t === EvaluateDirective || t === ParseDirective || t === IncludeDirective ||
-            t === Hash // Hash can start a macro invocation
+            t === EvaluateDirective || t === ParseDirective || t === IncludeDirective
           );
         },
         ALT: () => this.SUBRULE(this.text),
@@ -180,41 +178,8 @@ export class VtlParser extends CstParser {
   // Text: non-directive, non-interpolation content (up to next # or $)
   // Per Java Parser.jjt line 1580: Whitespace can also be text
   text = this.RULE('text', () => {
-    this.AT_LEAST_ONE({
-      GATE: () => {
-        const t = this.LA(1).tokenType;
-        // Stop consuming text before directive/interpolation tokens
-        if (
-          t === DollarRef || t === QuietRef || t === InterpStart ||
-          t === IfDirective || t === ElseIfDirective || t === ElseDirective ||
-          t === SetDirective || t === ForEachDirective || t === BreakDirective ||
-          t === StopDirective || t === MacroDirective || t === EndDirective ||
-          t === EvaluateDirective || t === ParseDirective || t === IncludeDirective
-        ) {
-          return false;
-        }
-        // Also stop before macro invocation patterns: Hash + Identifier + LParen
-        if (t === Hash) {
-          let idx = 2;
-          // Skip whitespace
-          while (this.LA(idx)?.tokenType === Whitespace || this.LA(idx)?.tokenType === Newline) {
-            idx++;
-          }
-          if (this.LA(idx)?.tokenType === Identifier) {
-            idx++;
-            while (this.LA(idx)?.tokenType === Whitespace || this.LA(idx)?.tokenType === Newline) {
-              idx++;
-            }
-            if (this.LA(idx)?.tokenType === LParen) {
-              return false; // Stop before macro invocation
-            }
-          }
-        }
-        return true; // Continue consuming text
-      },
-      DEF: () => {
-        this.CONSUME(AnyTextFragment);
-      },
+    this.AT_LEAST_ONE(() => {
+      this.CONSUME(AnyTextFragment);
     });
   });
 
@@ -224,15 +189,28 @@ export class VtlParser extends CstParser {
   interpolation = this.RULE('interpolation', () => {
     this.OR([
       {
+        // ${identifier.property[index]} syntax
+        GATE: () => {
+          const la1 = this.LA(1);
+          const la2 = this.LA(2);
+          return la1.tokenType === InterpStart && la2.tokenType === Identifier;
+        },
+        ALT: () => {
+          this.CONSUME1(InterpStart);
+          this.SUBRULE1(this.bareVarChain);
+          this.CONSUME1(RCurly);
+        },
+      },
+      {
+        // ${expression} syntax for complex expressions
         ALT: () => {
           this.CONSUME(InterpStart);
-          // Inside ${}, only allow bare identifier chains (Java Velocity doesn't support expressions here)
-          // Examples: ${user.name}, ${items[0]}, ${user.getName()}
-          this.SUBRULE1(this.bareVarChain);
+          this.SUBRULE(this.expression);
           this.CONSUME(RCurly);
         },
       },
       {
+        // $var.chain syntax
         GATE: () => {
           const la = this.LA(1);
           return la.tokenType === DollarRef || la.tokenType === QuietRef;
@@ -250,9 +228,9 @@ export class VtlParser extends CstParser {
     this.MANY(() => this.SUBRULE(this.suffix));
   });
 
-  // Bare variable chain (for inside ${}): user.name, items[0], etc.
+  // Bare variable chain: identifier.suffix()[] etc. (for use inside ${...})
   bareVarChain = this.RULE('bareVarChain', () => {
-    this.CONSUME(Identifier, { LABEL: 'base' });
+    this.CONSUME(Identifier);
     this.MANY(() => this.SUBRULE(this.suffix));
   });
 
@@ -273,26 +251,22 @@ export class VtlParser extends CstParser {
       { ALT: () => this.SUBRULE(this.breakDirective) },
       { ALT: () => this.SUBRULE(this.stopDirective) },
       { ALT: () => this.SUBRULE(this.macroDirective) },
+      { ALT: () => this.SUBRULE(this.macroInvocation) },
       { ALT: () => this.SUBRULE(this.evaluateDirective) },
       { ALT: () => this.SUBRULE(this.parseDirective) },
       { ALT: () => this.SUBRULE(this.includeDirective) },
-      // Macro invocation: #macroName(args) - must come last as fallback
-      { ALT: () => this.SUBRULE(this.macroInvocation) },
     ]);
   });
 
   // #if directive
   ifDirective = this.RULE('ifDirective', () => {
     this.CONSUME(IfDirective, { LABEL: 'ifKeyword' });
-    // Optional whitespace before (
-    this.MANY1(() => this.OR1([
-      { ALT: () => this.CONSUME(Whitespace) },
-      { ALT: () => this.CONSUME(Newline) },
-    ]));
+    // Optional whitespace between directive and opening parenthesis
+    this.MANY(() => this.CONSUME(Whitespace));
     this.CONSUME(LParen);
     this.SUBRULE(this.expression, { LABEL: 'condition' });
     this.CONSUME(RParen);
-    this.MANY2({
+    this.MANY1({
       GATE: () => {
         const t = this.LA(1).tokenType;
         return t !== ElseIfDirective && t !== ElseDirective && t !== EndDirective;
@@ -301,7 +275,7 @@ export class VtlParser extends CstParser {
         this.SUBRULE(this.segment, { LABEL: 'thenBody' });
       },
     });
-    this.MANY3(() => {
+    this.MANY2(() => {
       this.SUBRULE(this.elseIfDirective, { LABEL: 'elseIfBranches' });
     });
     this.OPTION1(() => {
@@ -315,15 +289,12 @@ export class VtlParser extends CstParser {
   // #elseif directive
   elseIfDirective = this.RULE('elseIfDirective', () => {
     this.CONSUME(ElseIfDirective, { LABEL: 'elseIfKeyword' });
-    // Optional whitespace before (
-    this.MANY1(() => this.OR1([
-      { ALT: () => this.CONSUME(Whitespace) },
-      { ALT: () => this.CONSUME(Newline) },
-    ]));
+    // Optional whitespace between directive and opening parenthesis
+    this.MANY1(() => this.CONSUME1(Whitespace));
     this.CONSUME(LParen);
     this.SUBRULE(this.expression, { LABEL: 'condition' });
     this.CONSUME(RParen);
-    this.MANY2({
+    this.MANY({
       GATE: () => {
         const t = this.LA(1).tokenType;
         return t !== ElseIfDirective && t !== ElseDirective && t !== EndDirective;
@@ -351,32 +322,29 @@ export class VtlParser extends CstParser {
   // #set directive
   setDirective = this.RULE('setDirective', () => {
     this.CONSUME(SetDirective, { LABEL: 'setKeyword' });
-    // Optional whitespace before (
-    this.MANY1(() => this.OR1([
-      { ALT: () => this.CONSUME(Whitespace) },
-      { ALT: () => this.CONSUME(Newline) },
-    ]));
+    // Optional whitespace between directive and opening parenthesis
+    this.MANY5(() => this.CONSUME6(Whitespace));
     this.CONSUME(LParen);
     // Optional whitespace after (
-    this.MANY2(() => this.OR2([
+    this.MANY1(() => this.OR1([
       { ALT: () => this.CONSUME1(Whitespace) },
       { ALT: () => this.CONSUME1(Newline) },
     ]));
     this.CONSUME(DollarRef, { LABEL: 'variable' });
     // Optional whitespace after variable
-    this.MANY3(() => this.OR3([
+    this.MANY2(() => this.OR2([
       { ALT: () => this.CONSUME2(Whitespace) },
       { ALT: () => this.CONSUME2(Newline) },
     ]));
     this.CONSUME(Assign);
     // Optional whitespace after =
-    this.MANY4(() => this.OR4([
+    this.MANY3(() => this.OR3([
       { ALT: () => this.CONSUME3(Whitespace) },
       { ALT: () => this.CONSUME3(Newline) },
     ]));
     this.SUBRULE(this.expression, { LABEL: 'value' });
     // Optional whitespace before )
-    this.MANY5(() => this.OR5([
+    this.MANY4(() => this.OR4([
       { ALT: () => this.CONSUME4(Whitespace) },
       { ALT: () => this.CONSUME4(Newline) },
     ]));
@@ -388,31 +356,21 @@ export class VtlParser extends CstParser {
   // #foreach directive
   forEachDirective = this.RULE('forEachDirective', () => {
     this.CONSUME(ForEachDirective, { LABEL: 'foreachKeyword' });
-    // Optional whitespace before (
-    this.MANY1(() => this.OR1([
-      { ALT: () => this.CONSUME(Whitespace) },
-      { ALT: () => this.CONSUME(Newline) },
-    ]));
+    // Optional whitespace between directive and opening parenthesis
+    this.MANY1(() => this.CONSUME2(Whitespace));
     this.CONSUME(LParen);
     this.CONSUME(DollarRef, { LABEL: 'variable' });
-    // Optional whitespace after variable
-    this.MANY3(() => this.OR3([
-      { ALT: () => this.CONSUME1(Whitespace) },
-      { ALT: () => this.CONSUME1(Newline) },
-    ]));
-    // "in" keyword: can be InKeyword token, TemplateText "in ", or Identifier "in"
-    this.OR4([
-      { ALT: () => this.CONSUME(InKeyword, { LABEL: 'inKeyword' }) },
+    // Optional whitespace before "in" keyword
+    this.MANY2(() => this.CONSUME3(Whitespace));
+    // "in" keyword: match TemplateText or Identifier with "in" content
+    this.OR([
       {
         GATE: () => {
           const la = this.LA(1);
-          // Check if it's any text fragment token with "in" content
-          const isTextToken = la.tokenType.CATEGORIES?.some((c: any) => c.name === 'AnyTextFragment') ?? false;
-          return isTextToken && la.image.trim() === 'in';
+          return (la.tokenType.CATEGORIES?.some((c: any) => c.name === 'AnyTextFragment') ?? false) && la.image.trim() === 'in';
         },
         ALT: () => {
-          // TemplateText or any AnyTextFragment capturing "in " or similar
-          this.CONSUME(AnyTextFragment, { LABEL: 'inText' });
+          this.CONSUME(AnyTextFragment, { LABEL: 'inKeyword' });
         },
       },
       {
@@ -421,19 +379,15 @@ export class VtlParser extends CstParser {
           return la.tokenType.name === 'Identifier' && la.image === 'in';
         },
         ALT: () => {
-          // Identifier "in" + optional whitespace/newlines
-          this.CONSUME(Identifier, { LABEL: 'inWord' });
+          this.CONSUME(Identifier, { LABEL: 'inKeyword' });
         },
       },
     ]);
     // Optional whitespace after "in" keyword
-    this.MANY4(() => this.OR5([
-      { ALT: () => this.CONSUME2(Whitespace) },
-      { ALT: () => this.CONSUME2(Newline) },
-    ]));
+    this.MANY3(() => this.CONSUME4(Whitespace));
     this.SUBRULE(this.expression, { LABEL: 'iterable' });
     this.CONSUME(RParen);
-    this.MANY2({
+    this.MANY({
       GATE: () => {
         const t = this.LA(1).tokenType;
         return t !== EndDirective && t !== ElseDirective;
@@ -454,7 +408,7 @@ export class VtlParser extends CstParser {
     });
     this.CONSUME(EndDirective, { LABEL: 'endKeyword' });
     // Capture optional whitespace after #end as postfix
-    this.OPTION1(() => this.CONSUME3(Whitespace, { LABEL: 'postfix' }));
+    this.OPTION1(() => this.CONSUME1(Whitespace, { LABEL: 'postfix' }));
   });
 
   // #break directive
@@ -484,33 +438,23 @@ export class VtlParser extends CstParser {
     this.OPTION(() => this.CONSUME(Whitespace, { LABEL: 'postfix' }));
   });
 
-  // #macro directive: #macro(name $param1 $param2)
+  // #macro directive (stub)
   macroDirective = this.RULE('macroDirective', () => {
     this.CONSUME(MacroDirective, { LABEL: 'macroKeyword' });
-    // Optional whitespace before (
-    this.MANY1(() => this.OR1([
-      { ALT: () => this.CONSUME(Whitespace) },
-      { ALT: () => this.CONSUME(Newline) },
-    ]));
-    this.CONSUME(LParen);
-    // Macro name is INSIDE parentheses
-    this.CONSUME(Identifier, { LABEL: 'name' });
-    // Optional parameters after name
-    this.MANY2(() => {
-      // Optional whitespace before parameter
-      this.MANY4(() => this.OR2([
-        { ALT: () => this.CONSUME1(Whitespace) },
-        { ALT: () => this.CONSUME1(Newline) },
-      ]));
-      this.CONSUME(DollarRef, { LABEL: 'parameters' });
+    this.CONSUME1(Identifier, { LABEL: 'name' });
+    this.OPTION1(() => {
+      this.CONSUME(LParen);
+      this.OPTION2(() => {
+        // Macro parameters are $param1, $param2, etc.
+        this.CONSUME(DollarRef, { LABEL: 'parameters' });
+        this.MANY1(() => {
+          this.CONSUME(Comma);
+          this.CONSUME1(DollarRef, { LABEL: 'parameters' });
+        });
+      });
+      this.CONSUME(RParen);
     });
-    // Optional whitespace before )
-    this.MANY5(() => this.OR3([
-      { ALT: () => this.CONSUME2(Whitespace) },
-      { ALT: () => this.CONSUME2(Newline) },
-    ]));
-    this.CONSUME(RParen);
-    this.MANY3({
+    this.MANY2({
       GATE: () => {
         const t = this.LA(1).tokenType;
         return t !== EndDirective;
@@ -521,58 +465,30 @@ export class VtlParser extends CstParser {
     });
     this.CONSUME(EndDirective, { LABEL: 'endKeyword' });
     // Capture optional whitespace after #end as postfix
-    this.OPTION3(() => this.CONSUME4(Whitespace, { LABEL: 'postfix' }));
+    this.OPTION3(() => this.CONSUME2(Whitespace, { LABEL: 'postfix' }));
   });
 
-  // Macro invocation: #macroName(args)
+  // Macro invocation: #macroName(arg1, arg2, ...)
   macroInvocation = this.RULE('macroInvocation', () => {
-    this.CONSUME(Hash, { LABEL: 'hash' });
-    this.CONSUME(Identifier, { LABEL: 'name' });
-    // Optional whitespace before (
-    this.MANY1(() => this.OR1([
-      { ALT: () => this.CONSUME(Whitespace) },
-      { ALT: () => this.CONSUME(Newline) },
-    ]));
+    this.CONSUME(MacroInvocationStart, { LABEL: 'invocation' });
     this.CONSUME(LParen);
-    // Optional whitespace after (
-    this.MANY2(() => this.OR2([
-      { ALT: () => this.CONSUME1(Whitespace) },
-      { ALT: () => this.CONSUME1(Newline) },
-    ]));
-    // Optional argument list
     this.OPTION(() => {
-      this.SUBRULE1(this.expression, { LABEL: 'arguments' });
-      this.MANY3(() => {
-        // Optional whitespace before comma
-        this.MANY4(() => this.OR3([
-          { ALT: () => this.CONSUME2(Whitespace) },
-          { ALT: () => this.CONSUME2(Newline) },
-        ]));
+      this.SUBRULE(this.expression, { LABEL: 'arguments' });
+      this.MANY(() => {
         this.CONSUME(Comma);
-        // Optional whitespace after comma
-        this.MANY5(() => this.OR4([
-          { ALT: () => this.CONSUME3(Whitespace) },
-          { ALT: () => this.CONSUME3(Newline) },
-        ]));
-        this.SUBRULE2(this.expression, { LABEL: 'arguments' });
+        this.SUBRULE1(this.expression, { LABEL: 'arguments' });
       });
     });
-    // Optional whitespace before )
-    this.MANY6(() => this.OR5([
-      { ALT: () => this.CONSUME4(Whitespace) },
-      { ALT: () => this.CONSUME4(Newline) },
-    ]));
     this.CONSUME(RParen);
+    // Capture optional whitespace after invocation as postfix
+    this.OPTION1(() => this.CONSUME(Whitespace, { LABEL: 'postfix' }));
   });
 
   // #evaluate directive
   evaluateDirective = this.RULE('evaluateDirective', () => {
     this.CONSUME(EvaluateDirective, { LABEL: 'evaluateKeyword' });
-    // Optional whitespace before (
-    this.MANY1(() => this.OR1([
-      { ALT: () => this.CONSUME(Whitespace) },
-      { ALT: () => this.CONSUME(Newline) },
-    ]));
+    // Optional whitespace between directive and opening parenthesis
+    this.MANY(() => this.CONSUME(Whitespace));
     this.CONSUME(LParen);
     this.SUBRULE(this.expression, { LABEL: 'expression' });
     this.CONSUME(RParen);
@@ -583,11 +499,6 @@ export class VtlParser extends CstParser {
   // #parse directive
   parseDirective = this.RULE('parseDirective', () => {
     this.CONSUME(ParseDirective, { LABEL: 'parseKeyword' });
-    // Optional whitespace before (
-    this.MANY1(() => this.OR1([
-      { ALT: () => this.CONSUME(Whitespace) },
-      { ALT: () => this.CONSUME(Newline) },
-    ]));
     this.CONSUME(LParen);
     this.SUBRULE(this.expression, { LABEL: 'expression' });
     this.CONSUME(RParen);
@@ -598,11 +509,6 @@ export class VtlParser extends CstParser {
   // #include directive
   includeDirective = this.RULE('includeDirective', () => {
     this.CONSUME(IncludeDirective, { LABEL: 'includeKeyword' });
-    // Optional whitespace before (
-    this.MANY1(() => this.OR1([
-      { ALT: () => this.CONSUME(Whitespace) },
-      { ALT: () => this.CONSUME(Newline) },
-    ]));
     this.CONSUME(LParen);
     this.SUBRULE(this.expression, { LABEL: 'expression' });
     this.CONSUME(RParen);
@@ -648,218 +554,208 @@ export class VtlParser extends CstParser {
 
   logicalOr = this.RULE('logicalOr', () => {
     this.SUBRULE(this.logicalAnd);
-    this.MANY({
+    this.MANY1({
+      // Only enter loop if there's an || operator (possibly after whitespace)
       GATE: () => {
         let i = 1;
-        while (i <= 5) {
-          const la = this.LA(i);
-          if (!la || !la.tokenType) return false;
-          if (la.tokenType === Or) return true;
-          if (la.tokenType !== Whitespace && la.tokenType !== Newline) return false;
+        let la = this.LA(i);
+        // Skip whitespace tokens
+        while (la && (la.tokenType === Whitespace || la.tokenType === Newline)) {
           i++;
+          la = this.LA(i);
         }
-        return false;
+        // Check if we found ||
+        return la && la.tokenType === Or;
       },
       DEF: () => {
-        this.MANY1(() => {
-          this.OR1([
-            { ALT: () => this.CONSUME1(Whitespace) },
-            { ALT: () => this.CONSUME1(Newline) },
-          ]);
-        });
+        // Allow whitespace before operator
+        this.MANY2(() => this.OR1([
+          { ALT: () => this.CONSUME1(Whitespace) },
+          { ALT: () => this.CONSUME1(Newline) },
+        ]));
         this.CONSUME(Or);
-        this.MANY2(() => {
-          this.OR2([
-            { ALT: () => this.CONSUME2(Whitespace) },
-            { ALT: () => this.CONSUME2(Newline) },
-          ]);
-        });
-        this.SUBRULE1(this.logicalAnd);
-      }
+        // Allow whitespace after operator
+        this.MANY3(() => this.OR2([
+          { ALT: () => this.CONSUME2(Whitespace) },
+          { ALT: () => this.CONSUME2(Newline) },
+        ]));
+        this.SUBRULE2(this.logicalAnd);
+      },
     });
   });
 
   logicalAnd = this.RULE('logicalAnd', () => {
     this.SUBRULE(this.equality);
-    this.MANY({
+    this.MANY1({
+      // Only enter loop if there's an && operator (possibly after whitespace)
       GATE: () => {
         let i = 1;
-        while (i <= 5) {
-          const la = this.LA(i);
-          if (!la || !la.tokenType) return false;
-          if (la.tokenType === And) return true;
-          if (la.tokenType !== Whitespace && la.tokenType !== Newline) return false;
+        let la = this.LA(i);
+        // Skip whitespace tokens
+        while (la && (la.tokenType === Whitespace || la.tokenType === Newline)) {
           i++;
+          la = this.LA(i);
         }
-        return false;
+        // Check if we found &&
+        return la && la.tokenType === And;
       },
       DEF: () => {
-        this.MANY1(() => {
-          this.OR1([
-            { ALT: () => this.CONSUME1(Whitespace) },
-            { ALT: () => this.CONSUME1(Newline) },
-          ]);
-        });
+        // Allow whitespace before operator
+        this.MANY2(() => this.OR1([
+          { ALT: () => this.CONSUME1(Whitespace) },
+          { ALT: () => this.CONSUME1(Newline) },
+        ]));
         this.CONSUME(And);
-        this.MANY2(() => {
-          this.OR2([
-            { ALT: () => this.CONSUME2(Whitespace) },
-            { ALT: () => this.CONSUME2(Newline) },
-          ]);
-        });
-        this.SUBRULE1(this.equality);
-      }
+        // Allow whitespace after operator
+        this.MANY3(() => this.OR2([
+          { ALT: () => this.CONSUME2(Whitespace) },
+          { ALT: () => this.CONSUME2(Newline) },
+        ]));
+        this.SUBRULE2(this.equality);
+      },
     });
   });
 
   equality = this.RULE('equality', () => {
     this.SUBRULE(this.relational);
-    this.MANY({
+    this.MANY1({
+      // Only enter loop if there's an == or != operator (possibly after whitespace)
       GATE: () => {
         let i = 1;
-        while (i <= 5) {
-          const la = this.LA(i);
-          if (!la || !la.tokenType) return false;
-          if (la.tokenType === Eq || la.tokenType === Ne) return true;
-          if (la.tokenType !== Whitespace && la.tokenType !== Newline) return false;
+        let la = this.LA(i);
+        // Skip whitespace tokens
+        while (la && (la.tokenType === Whitespace || la.tokenType === Newline)) {
           i++;
+          la = this.LA(i);
         }
-        return false;
+        // Check if we found == or !=
+        return la && (la.tokenType === Eq || la.tokenType === Ne);
       },
       DEF: () => {
-        this.MANY1(() => {
-          this.OR1([
-            { ALT: () => this.CONSUME1(Whitespace) },
-            { ALT: () => this.CONSUME1(Newline) },
-          ]);
-        });
+        // Allow whitespace before operator
+        this.MANY2(() => this.OR1([
+          { ALT: () => this.CONSUME1(Whitespace) },
+          { ALT: () => this.CONSUME1(Newline) },
+        ]));
         this.OR2([
           { ALT: () => this.CONSUME(Eq) },
           { ALT: () => this.CONSUME(Ne) },
         ]);
-        this.MANY2(() => {
-          this.OR3([
-            { ALT: () => this.CONSUME2(Whitespace) },
-            { ALT: () => this.CONSUME2(Newline) },
-          ]);
-        });
-        this.SUBRULE1(this.relational);
-      }
+        // Allow whitespace after operator
+        this.MANY3(() => this.OR3([
+          { ALT: () => this.CONSUME2(Whitespace) },
+          { ALT: () => this.CONSUME2(Newline) },
+        ]));
+        this.SUBRULE2(this.relational);
+      },
     });
   });
 
   relational = this.RULE('relational', () => {
     this.SUBRULE(this.additive);
-    this.MANY({
+    this.MANY1({
+      // Only enter loop if there's a relational operator (possibly after whitespace)
       GATE: () => {
         let i = 1;
-        while (i <= 5) {
-          const la = this.LA(i);
-          if (!la || !la.tokenType) return false;
-          if (la.tokenType === Lt || la.tokenType === Le || la.tokenType === Gt || la.tokenType === Ge) return true;
-          if (la.tokenType !== Whitespace && la.tokenType !== Newline) return false;
+        let la = this.LA(i);
+        // Skip whitespace tokens
+        while (la && (la.tokenType === Whitespace || la.tokenType === Newline)) {
           i++;
+          la = this.LA(i);
         }
-        return false;
+        // Check if we found a <, <=, >, or >= operator
+        return la && (la.tokenType === Lt || la.tokenType === Le || la.tokenType === Gt || la.tokenType === Ge);
       },
       DEF: () => {
-        this.MANY1(() => {
-          this.OR1([
-            { ALT: () => this.CONSUME1(Whitespace) },
-            { ALT: () => this.CONSUME1(Newline) },
-          ]);
-        });
+        // Allow whitespace before operator
+        this.MANY2(() => this.OR1([
+          { ALT: () => this.CONSUME1(Whitespace) },
+          { ALT: () => this.CONSUME1(Newline) },
+        ]));
         this.OR2([
           { ALT: () => this.CONSUME(Lt) },
           { ALT: () => this.CONSUME(Le) },
           { ALT: () => this.CONSUME(Gt) },
           { ALT: () => this.CONSUME(Ge) },
         ]);
-        this.MANY2(() => {
-          this.OR3([
-            { ALT: () => this.CONSUME2(Whitespace) },
-            { ALT: () => this.CONSUME2(Newline) },
-          ]);
-        });
-        this.SUBRULE1(this.additive);
-      }
+        // Allow whitespace after operator
+        this.MANY3(() => this.OR3([
+          { ALT: () => this.CONSUME2(Whitespace) },
+          { ALT: () => this.CONSUME2(Newline) },
+        ]));
+        this.SUBRULE2(this.additive);
+      },
     });
   });
 
   additive = this.RULE('additive', () => {
     this.SUBRULE(this.multiplicative);
-    this.MANY({
+    this.MANY1({
+      // Only enter loop if there's a + or - operator (possibly after whitespace)
       GATE: () => {
-        // Look ahead to find Plus or Minus, skipping whitespace
         let i = 1;
-        while (i <= 5) {  // Look ahead up to 5 tokens
-          const la = this.LA(i);
-          if (!la || !la.tokenType) return false;
-          if (la.tokenType === Plus || la.tokenType === Minus) return true;
-          if (la.tokenType !== Whitespace && la.tokenType !== Newline) return false;
+        let la = this.LA(i);
+        // Skip whitespace tokens
+        while (la && (la.tokenType === Whitespace || la.tokenType === Newline)) {
           i++;
+          la = this.LA(i);
         }
-        return false;
+        // Check if we found a + or - operator
+        return la && (la.tokenType === Plus || la.tokenType === Minus);
       },
       DEF: () => {
-        // Consume any whitespace before operator
-        this.MANY1(() => {
-          this.OR1([
-            { ALT: () => this.CONSUME1(Whitespace) },
-            { ALT: () => this.CONSUME1(Newline) },
-          ]);
-        });
+        // Allow whitespace before operator
+        this.MANY2(() => this.OR1([
+          { ALT: () => this.CONSUME1(Whitespace) },
+          { ALT: () => this.CONSUME1(Newline) },
+        ]));
         this.OR2([
           { ALT: () => this.CONSUME(Plus) },
           { ALT: () => this.CONSUME(Minus) },
         ]);
-        // Consume any whitespace after operator
-        this.MANY2(() => {
-          this.OR3([
-            { ALT: () => this.CONSUME2(Whitespace) },
-            { ALT: () => this.CONSUME2(Newline) },
-          ]);
-        });
-        this.SUBRULE1(this.multiplicative);
-      }
+        // Allow whitespace after operator
+        this.MANY3(() => this.OR3([
+          { ALT: () => this.CONSUME2(Whitespace) },
+          { ALT: () => this.CONSUME2(Newline) },
+        ]));
+        this.SUBRULE2(this.multiplicative);
+      },
     });
   });
 
   multiplicative = this.RULE('multiplicative', () => {
     this.SUBRULE(this.unary);
-    this.MANY({
+    this.MANY1({
+      // Only enter loop if there's a *, /, or % operator (possibly after whitespace)
       GATE: () => {
-        // Look ahead to find Star, Slash, or Mod, skipping whitespace
         let i = 1;
-        while (i <= 5) {
-          const la = this.LA(i);
-          if (!la || !la.tokenType) return false;
-          if (la.tokenType === Star || la.tokenType === Slash || la.tokenType === Mod) return true;
-          if (la.tokenType !== Whitespace && la.tokenType !== Newline) return false;
+        let la = this.LA(i);
+        // Skip whitespace tokens
+        while (la && (la.tokenType === Whitespace || la.tokenType === Newline)) {
           i++;
+          la = this.LA(i);
         }
-        return false;
+        // Check if we found a *, /, or % operator
+        return la && (la.tokenType === Star || la.tokenType === Slash || la.tokenType === Mod);
       },
       DEF: () => {
-        this.MANY1(() => {
-          this.OR1([
-            { ALT: () => this.CONSUME1(Whitespace) },
-            { ALT: () => this.CONSUME1(Newline) },
-          ]);
-        });
+        // Allow whitespace before operator
+        this.MANY2(() => this.OR1([
+          { ALT: () => this.CONSUME1(Whitespace) },
+          { ALT: () => this.CONSUME1(Newline) },
+        ]));
         this.OR2([
           { ALT: () => this.CONSUME(Star) },
           { ALT: () => this.CONSUME(Slash) },
           { ALT: () => this.CONSUME(Mod) },
         ]);
-        this.MANY2(() => {
-          this.OR3([
-            { ALT: () => this.CONSUME2(Whitespace) },
-            { ALT: () => this.CONSUME2(Newline) },
-          ]);
-        });
-        this.SUBRULE1(this.unary);
-      }
+        // Allow whitespace after operator
+        this.MANY3(() => this.OR3([
+          { ALT: () => this.CONSUME2(Whitespace) },
+          { ALT: () => this.CONSUME2(Newline) },
+        ]));
+        this.SUBRULE2(this.unary);
+      },
     });
   });
 
