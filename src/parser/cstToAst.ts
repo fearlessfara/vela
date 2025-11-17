@@ -376,6 +376,15 @@ function textToAst(text: CstNode): Text {
 }
 
 function interpolationToAst(interp: CstNode): Interpolation {
+  // ${expression} syntax
+  if (interp.children.expression) {
+    return {
+      type: 'Interpolation',
+      expression: expressionToAst(interp.children.expression[0] as CstNode),
+      location: getLocation(interp),
+    };
+  }
+  // $var.chain syntax
   if (interp.children.varChain) {
     return {
       type: 'Interpolation',
@@ -383,6 +392,7 @@ function interpolationToAst(interp: CstNode): Interpolation {
       location: getLocation(interp),
     };
   }
+  // ${var.chain} syntax (bare var chain)
   if (interp.children.bareVarChain) {
     return {
       type: 'Interpolation',
@@ -432,7 +442,7 @@ function varChainToAst(varChain: CstNode): Expression {
 
 function bareVarChainToAst(bareVarChain: CstNode): Expression {
   // Start with the base identifier
-  const baseToken = (bareVarChain.children.base![0] as any).image;
+  const baseToken = ((bareVarChain.children.Identifier || bareVarChain.children.base)![0] as any).image;
   let expr: Expression = {
     type: 'VariableReference',
     name: baseToken,

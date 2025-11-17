@@ -189,13 +189,28 @@ export class VtlParser extends CstParser {
   interpolation = this.RULE('interpolation', () => {
     this.OR([
       {
+        // ${identifier.property[index]} syntax
+        GATE: () => {
+          const la1 = this.LA(1);
+          const la2 = this.LA(2);
+          return la1.tokenType === InterpStart && la2.tokenType === Identifier;
+        },
+        ALT: () => {
+          this.CONSUME1(InterpStart);
+          this.SUBRULE1(this.bareVarChain);
+          this.CONSUME1(RCurly);
+        },
+      },
+      {
+        // ${expression} syntax for complex expressions
         ALT: () => {
           this.CONSUME(InterpStart);
-          this.SUBRULE1(this.expression);
+          this.SUBRULE(this.expression);
           this.CONSUME(RCurly);
         },
       },
       {
+        // $var.chain syntax
         GATE: () => {
           const la = this.LA(1);
           return la.tokenType === DollarRef || la.tokenType === QuietRef;
@@ -210,6 +225,12 @@ export class VtlParser extends CstParser {
   // Variable chain: $var.suffix()[] etc.
   varChain = this.RULE('varChain', () => {
     this.SUBRULE(this.variableReference);
+    this.MANY(() => this.SUBRULE(this.suffix));
+  });
+
+  // Bare variable chain: identifier.suffix()[] etc. (for use inside ${...})
+  bareVarChain = this.RULE('bareVarChain', () => {
+    this.CONSUME(Identifier);
     this.MANY(() => this.SUBRULE(this.suffix));
   });
 
