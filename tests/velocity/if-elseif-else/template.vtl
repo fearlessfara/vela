@@ -1,0 +1,22 @@
+## Test #if, #elseif, #else
+#if($user.age < 18)
+Minor
+#elseif($user.age < 65)
+Adult
+#else
+Senior
+#end
+
+#if($user.name == "Alice")
+Hello Alice!
+#elseif($user.name == "Bob")
+Hello Bob!
+#else
+Hello stranger!
+#end
+
+#if($user.premium)
+Premium user
+#else
+Regular user
+#end

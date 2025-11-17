@@ -97,6 +97,9 @@ export class VtlEvaluator {
       case 'MacroDirective':
         this.evaluateMacroDirective(segment);
         break;
+      case 'MacroInvocation':
+        this.evaluateMacroInvocation(segment);
+        break;
       case 'EvaluateDirective':
         this.evaluateEvaluateDirective(segment);
         break;
@@ -115,13 +118,32 @@ export class VtlEvaluator {
 
   private evaluateInterpolation(interp: Interpolation): void {
     const value = this.evaluateExpression(interp.expression);
-    // If it's a simple variable reference that's null, output the literal variable name
-    if (value === null && interp.expression.type === 'VariableReference') {
-      const varRef = interp.expression as VariableReference;
-      this.stringBuilder.appendString('$' + (varRef.quiet ? '!' : '') + varRef.name);
+    // If the value is null, output the literal reference (Java Velocity behavior)
+    if (value === null) {
+      this.stringBuilder.appendString(this.expressionToLiteralReference(interp.expression));
       return;
     }
     this.appendInterpolatedValue(value);
+  }
+
+  /**
+   * Convert an expression to its literal reference form (e.g., "$name.length")
+   * Used when a property/method doesn't exist and should be output literally
+   */
+  private expressionToLiteralReference(expr: any): string {
+    if (expr.type === 'VariableReference') {
+      return '$' + (expr.quiet ? '!' : '') + expr.name;
+    }
+    if (expr.type === 'MemberAccess') {
+      const objectRef = this.expressionToLiteralReference(expr.object);
+      return objectRef + '.' + expr.property;
+    }
+    if (expr.type === 'FunctionCall') {
+      const calleeRef = this.expressionToLiteralReference(expr.callee);
+      return calleeRef + '()';
+    }
+    // For other expression types, return empty string
+    return '';
   }
 
   /**
@@ -148,9 +170,12 @@ export class VtlEvaluator {
   private writePostfix(segment: Segment): void {
     if (!segment.postfix) return;
 
-    // Only NONE mode writes postfix
-    // BC, LINES, and STRUCTURED all gobble the postfix (trailing whitespace/newline)
-    if (this.spaceGobbling === 'none') {
+    // Write postfix if:
+    // 1. spaceGobbling is 'none' (always preserve), OR
+    // 2. Directive has content before it on the same line (not a directive-only line)
+    // In 'lines' mode, only gobble postfix for directives on directive-only lines
+    const hasContentBefore = (segment as any).hasContentBefore || false;
+    if (this.spaceGobbling === 'none' || hasContentBefore) {
       this.stringBuilder.append(segment.postfix);
     }
   }
@@ -291,15 +316,58 @@ export class VtlEvaluator {
   }
 
   private evaluateMacroDirective(macroDirective: any): void {
-    // Write prefix/postfix for macro directive
-    this.writePrefix(macroDirective);
-    // Stub implementation - macros not yet supported
+    // Macro definitions don't output anything - they just register the macro
+    // No prefix/postfix output (unlike other directives)
     this.scopeManager.defineMacro(
       macroDirective.name,
       macroDirective.parameters,
       macroDirective.body
     );
-    this.writePostfix(macroDirective);
+  }
+
+  private evaluateMacroInvocation(macroInvocation: any): void {
+    // Look up the macro definition
+    const macro = this.scopeManager.getMacro(macroInvocation.name);
+
+    if (!macro) {
+      // Macro not found - output the invocation as literal text (Java Velocity behavior)
+      this.stringBuilder.appendString(`#${macroInvocation.name}(`);
+      for (let i = 0; i < macroInvocation.arguments.length; i++) {
+        if (i > 0) this.stringBuilder.appendString(', ');
+        const argValue = this.evaluateExpression(macroInvocation.arguments[i]);
+        this.stringBuilder.appendString(String(argValue));
+      }
+      this.stringBuilder.appendString(')');
+      return;
+    }
+
+    // Evaluate the arguments
+    const argValues: any[] = [];
+    for (const argExpr of macroInvocation.arguments) {
+      argValues.push(this.evaluateExpression(argExpr));
+    }
+
+    // Create a new scope for the macro execution
+    this.scopeManager.pushScope();
+
+    // Bind parameters to argument values
+    for (let i = 0; i < macro.parameters.length; i++) {
+      const paramName = macro.parameters[i];
+      if (!paramName) continue;
+      // Strip the $ from parameter names if present
+      const cleanName = paramName.startsWith('$') ? paramName.substring(1) : paramName;
+      const argValue = i < argValues.length ? argValues[i] : null;
+      this.scopeManager.setVariable(cleanName, argValue);
+    }
+
+    // Execute the macro body
+    for (const bodySegment of macro.body) {
+      if (this.shouldBreak || this.shouldStop) break;
+      this.evaluateSegment(bodySegment);
+    }
+
+    // Pop the macro scope
+    this.scopeManager.popScope();
   }
 
   private evaluateEvaluateDirective(evaluateDirective: EvaluateDirective): void {
@@ -443,18 +511,43 @@ export class VtlEvaluator {
     const object = this.evaluateExpression(member.object);
 
     if (object === null || object === undefined) {
-      return '';
+      return null;
     }
 
-    if (typeof object === 'object' && object !== null) {
-      const value = (object as any)[member.property];
-      if (typeof value === 'function') {
-        return value.bind(object);
+    // Velocity-specific methods for arrays/lists (Java compatibility)
+    if (Array.isArray(object)) {
+      if (member.property === 'size') {
+        return () => object.length;
       }
-      return value !== undefined ? value : '';
+      if (member.property === 'get') {
+        return (index: number) => object[index] !== undefined ? object[index] : null;
+      }
+      if (member.property === 'isEmpty') {
+        return () => object.length === 0;
+      }
     }
 
-    return '';
+    // JavaScript automatically boxes primitives when accessing properties
+    // So we can access properties/methods on strings, numbers, etc.
+    const value = (object as any)[member.property];
+
+    // If the value is a function (method), bind it to the object
+    // This ensures methods like 'velocity'.toUpperCase() work correctly
+    if (typeof value === 'function') {
+      return value.bind(object);
+    }
+
+    // For primitive types (string, number, boolean), Java Velocity only supports
+    // method calls, not property access. So return null for non-function properties
+    // on primitives to trigger literal reference output
+    const objectType = typeof object;
+    if (objectType === 'string' || objectType === 'number' || objectType === 'boolean') {
+      // Property doesn't exist or is not a method on primitive - return null
+      return null;
+    }
+
+    // For objects, return the property value, or null if undefined
+    return value !== undefined ? value : null;
   }
 
   private evaluateFunctionCall(call: FunctionCall): any {
@@ -532,7 +625,13 @@ export class VtlEvaluator {
         // Convert string numbers to numbers for division
         const leftDiv = typeof left === 'string' && !isNaN(Number(left)) ? Number(left) : left;
         const rightDiv = typeof right === 'string' && !isNaN(Number(right)) ? Number(right) : right;
-        return rightDiv !== 0 ? leftDiv / rightDiv : null; // Java Velocity returns null for division by zero
+        if (rightDiv === 0) return null; // Java Velocity returns null for division by zero
+        // Java Velocity uses integer division when both operands are integers
+        const result = leftDiv / rightDiv;
+        if (Number.isInteger(leftDiv) && Number.isInteger(rightDiv)) {
+          return Math.floor(result);
+        }
+        return result;
       case '%':
         // Convert string numbers to numbers for modulo
         const leftMod = typeof left === 'string' && !isNaN(Number(left)) ? Number(left) : left;

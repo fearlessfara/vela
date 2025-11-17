@@ -89,6 +89,12 @@ export interface MacroDirective extends BaseNode {
   body: Segment[];
 }
 
+export interface MacroInvocation extends BaseNode {
+  type: 'MacroInvocation';
+  name: string;
+  arguments: Expression[];
+}
+
 export interface EvaluateDirective extends BaseNode {
   type: 'EvaluateDirective';
   expression: Expression;
@@ -104,13 +110,14 @@ export interface IncludeDirective extends BaseNode {
   expression: Expression;
 }
 
-export type Directive = 
-  | IfDirective 
-  | SetDirective 
-  | ForEachDirective 
-  | BreakDirective 
-  | StopDirective 
+export type Directive =
+  | IfDirective
+  | SetDirective
+  | ForEachDirective
+  | BreakDirective
+  | StopDirective
   | MacroDirective
+  | MacroInvocation
   | EvaluateDirective
   | ParseDirective
   | IncludeDirective;

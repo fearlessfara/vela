@@ -57,44 +57,51 @@ async function runTest(testCase: TestCase): Promise<boolean> {
 
 async function main() {
   const testNameFilter = process.argv[2];
-  
+
   console.log('Apache Velocity Test Harness');
   console.log('============================\n');
-  
+
   const testCases = await loadTestCases();
-  
+
   if (testCases.length === 0) {
     console.log('No test cases found in tests/velocity/');
     console.log('Create test cases by adding directories with template.vtl and input.json files.');
     process.exit(0);
   }
-  
+
   const filteredCases = testNameFilter
     ? testCases.filter(tc => tc.name === testNameFilter)
     : testCases;
-  
+
   if (filteredCases.length === 0) {
     console.log(`No test cases found matching filter: ${testNameFilter}`);
     process.exit(1);
   }
-  
+
   console.log(`Found ${filteredCases.length} test case(s)\n`);
-  
+
   let passed = 0;
   let failed = 0;
-  
+  const failedTests: string[] = [];
+
   for (const testCase of filteredCases) {
     const result = await runTest(testCase);
     if (result) {
       passed++;
     } else {
       failed++;
+      failedTests.push(testCase.name);
     }
   }
-  
+
   console.log(`\n============================`);
   console.log(`Results: ${passed} passed, ${failed} failed`);
-  
+
+  if (failedTests.length > 0) {
+    console.log(`\nFailed tests:`);
+    failedTests.forEach(name => console.log(`  - ${name}`));
+  }
+
   process.exit(failed > 0 ? 1 : 0);
 }
 

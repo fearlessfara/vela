@@ -187,15 +187,17 @@ export class VelocityEngine {
       // Parse the template
       const parseResult = this.parser.parse(template);
 
-      if (parseResult.errors && parseResult.errors.length > 0) {
-        const errorMessages = parseResult.errors.map((e: any) => e.message).join('; ');
-        throw new ParseErrorException(`Template parsing failed: ${errorMessages}`);
-      }
-
-      // Convert CST to AST
+      // Check for fatal parse errors
+      // Note: Chevrotain may accumulate errors from backtracking attempts in OR rules,
+      // but if a CST was successfully generated, the parse succeeded
       if (!parseResult.cst) {
+        if (parseResult.errors && parseResult.errors.length > 0) {
+          const errorMessages = parseResult.errors.map((e: any) => e.message).join('; ');
+          throw new ParseErrorException(`Template parsing failed: ${errorMessages}`);
+        }
         throw new ParseErrorException('Failed to parse template');
       }
+
       const ast = cstToAst(parseResult.cst, this.config.spaceGobbling || 'lines');
 
       // Evaluate the template

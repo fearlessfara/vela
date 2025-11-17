@@ -111,8 +111,24 @@ function extractPrefixPostfix(segments: Segment[]): Segment[] {
                         segment.type !== 'VariableReference';
 
     if (isDirective) {
+      // Check if there's content before this directive on the same line
+      // This is used later to determine if postfix should be gobbled
+      // A directive is NOT on a directive-only line if there's content before it on the same line
+      // If previous segment ends with newline, the directive is on a new line
+      const prevInResult = result[result.length - 1];
+      const hasContentBefore = prevInResult &&
+                              prevInResult.type !== 'Text' ||
+                              (prevInResult && prevInResult.type === 'Text' &&
+                               !prevInResult.value.match(/\r?\n$/) &&
+                               prevInResult.value.length > 0);
+      if (hasContentBefore) {
+        (segment as any).hasContentBefore = true;
+      }
+
       // Extract prefix from previous Text segment if it ends with whitespace
-      if (prevSegment && prevSegment.type === 'Text') {
+      // Skip for MacroDirective - preserve blank lines before macro definitions
+      const isMacroDirective = segment.type === 'MacroDirective';
+      if (!isMacroDirective && prevSegment && prevSegment.type === 'Text') {
         const text = prevSegment.value;
         // Match trailing whitespace (spaces, tabs, newlines)
         // Capture indentation before directive: matches whitespace after last newline
@@ -128,11 +144,8 @@ function extractPrefixPostfix(segments: Segment[]): Segment[] {
             result.pop();
           }
         }
-        // Also check if entire previous segment is just a newline (for prefix capture)
-        else if (text.match(/^\r?\n$/)) {
-          (segment as any).prefix = text;
-          result.pop(); // Remove the newline Text segment
-        }
+        // Do NOT extract newline-only Text segments as prefix
+        // Newlines should be preserved in the output, only indentation (spaces/tabs) is prefix
       }
 
       // Extract postfix from next Text segment if it starts with whitespace/newline
@@ -227,8 +240,9 @@ function applySpaceGobbling(segments: Segment[], mode: SpaceGobblingMode): Segme
     // Check if current segment is a block directive
     const isBlockDirective =
       segment.type === 'IfDirective' ||
-      segment.type === 'ForEachDirective' ||
-      segment.type === 'MacroDirective';
+      segment.type === 'ForEachDirective';
+      // Note: MacroDirective is NOT included because macro definitions don't output anything
+      // and should not affect spacing around them (like comments)
 
     // Check if current segment is a line directive that gobbles trailing newlines
     // Per Java Parser.jjt line 1931: In "lines" mode, line directives gobble trailing newlines
@@ -257,7 +271,7 @@ function applySpaceGobbling(segments: Segment[], mode: SpaceGobblingMode): Segme
     const nextIsDirective = nextSegment && (
       nextSegment.type === 'IfDirective' ||
       nextSegment.type === 'ForEachDirective' ||
-      nextSegment.type === 'MacroDirective' ||
+      // Note: MacroDirective is NOT included - whitespace before macro definitions is preserved
       nextSegment.type === 'SetDirective' ||
       nextSegment.type === 'EvaluateDirective' ||
       nextSegment.type === 'ParseDirective' ||
@@ -362,17 +376,17 @@ function textToAst(text: CstNode): Text {
 }
 
 function interpolationToAst(interp: CstNode): Interpolation {
-  if (interp.children.expression) {
-    return {
-      type: 'Interpolation',
-      expression: expressionToAst(interp.children.expression[0] as CstNode),
-      location: getLocation(interp),
-    };
-  }
   if (interp.children.varChain) {
     return {
       type: 'Interpolation',
       expression: varChainToAst(interp.children.varChain[0] as CstNode),
+      location: getLocation(interp),
+    };
+  }
+  if (interp.children.bareVarChain) {
+    return {
+      type: 'Interpolation',
+      expression: bareVarChainToAst(interp.children.bareVarChain[0] as CstNode),
       location: getLocation(interp),
     };
   }
@@ -381,10 +395,10 @@ function interpolationToAst(interp: CstNode): Interpolation {
 
 function varChainToAst(varChain: CstNode): Expression {
   let expr: Expression = variableReferenceToAst(varChain.children.variableReference![0] as CstNode);
-  
+
   // Apply suffixes in order
   const suffixes = varChain.children.suffix || [];
-  
+
   for (const s of suffixes) {
     const sNode = s as CstNode;
     const c: any = sNode.children;
@@ -412,7 +426,50 @@ function varChainToAst(varChain: CstNode): Expression {
       } as ArrayAccess;
     }
   }
-  
+
+  return expr;
+}
+
+function bareVarChainToAst(bareVarChain: CstNode): Expression {
+  // Start with the base identifier
+  const baseToken = (bareVarChain.children.base![0] as any).image;
+  let expr: Expression = {
+    type: 'VariableReference',
+    name: baseToken,
+    location: getLocation(bareVarChain),
+  } as VariableReference;
+
+  // Apply suffixes in order (same as varChainToAst)
+  const suffixes = bareVarChain.children.suffix || [];
+
+  for (const s of suffixes) {
+    const sNode = s as CstNode;
+    const c: any = sNode.children;
+    if (c.Dot) {
+      expr = {
+        type: 'MemberAccess',
+        object: expr,
+        property: (c.prop[0] as any).image,
+        location: getLocation(s as any),
+      } as MemberAccess;
+    } else if (c.LParen) {
+      const args = (c.args ?? []).map((e: any) => expressionToAst(e));
+      expr = {
+        type: 'FunctionCall',
+        callee: expr,
+        arguments: args,
+        location: getLocation(s as any),
+      } as FunctionCall;
+    } else if (c.LBracket) {
+      expr = {
+        type: 'ArrayAccess',
+        object: expr,
+        index: expressionToAst(c.index[0] as CstNode),
+        location: getLocation(s as any),
+      } as ArrayAccess;
+    }
+  }
+
   return expr;
 }
 
@@ -434,6 +491,9 @@ function directiveToAst(directive: CstNode): Segment {
   }
   if (directive.children.macroDirective) {
     return macroDirectiveToAst(directive.children.macroDirective[0] as CstNode);
+  }
+  if (directive.children.macroInvocation) {
+    return macroInvocationToAst(directive.children.macroInvocation[0] as CstNode);
   }
   if (directive.children.evaluateDirective) {
     return evaluateDirectiveToAst(directive.children.evaluateDirective[0] as CstNode);
@@ -545,6 +605,15 @@ function macroDirectiveToAst(macroDirective: CstNode): MacroDirective {
     parameters: macroDirective.children.parameters?.map((p: any) => p.image) || [],
     body: macroDirective.children.body?.map(segmentToAst) || [],
     location: getLocation(macroDirective),
+  };
+}
+
+function macroInvocationToAst(macroInvocation: CstNode): any {
+  return {
+    type: 'MacroInvocation',
+    name: (macroInvocation.children.name![0] as any).image,
+    arguments: macroInvocation.children.arguments?.map((arg: any) => expressionToAst(arg)) || [],
+    location: getLocation(macroInvocation),
   };
 }
 
