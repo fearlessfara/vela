@@ -76,7 +76,6 @@ export function cstToAst(cst: CstNode, spaceGobbling: SpaceGobblingMode = 'lines
   // This matches Java Parser.jjt behavior (lines 1790-2040)
   const segmentsWithWhitespace = extractPrefixPostfix(segments);
 
-  // Apply space gobbling based on mode
   return {
     type: 'Template',
     segments: applySpaceGobbling(segmentsWithWhitespace, spaceGobbling),
@@ -296,7 +295,10 @@ function applySpaceGobbling(segments: Segment[], mode: SpaceGobblingMode): Segme
     // TRAILING NEWLINE GOBBLING:
     // If block directive starts on new line, gobble trailing newline from next text segment
     // Also applies to certain line directives (#evaluate, #parse, #include)
-    if (isDirective && prevEndsWithNewline && nextSegment?.type === 'Text') {
+    // IMPORTANT: Only gobble if postfix was NOT already extracted by extractPrefixPostfix
+    // If postfix exists, it already represents the directive's trailing newline
+    const hasPostfix = !!(segment as any).postfix;
+    if (isDirective && prevEndsWithNewline && !hasPostfix && nextSegment?.type === 'Text') {
       const text = nextSegment.value;
       if (text.startsWith('\n')) {
         // Remove the leading newline

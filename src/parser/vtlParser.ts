@@ -10,7 +10,6 @@ import {
   Identifier,
   DollarRef,
   QuietRef,
-  InKeyword,
   InterpStart,
   LCurly,
   RCurly,
@@ -359,19 +358,17 @@ export class VtlParser extends CstParser {
     this.MANY1(() => this.CONSUME2(Whitespace));
     this.CONSUME(LParen);
     this.CONSUME(DollarRef, { LABEL: 'variable' });
-    // "in" keyword: can be InKeyword token, TemplateText "in ", or Identifier "in"
+    // Optional whitespace before "in" keyword
+    this.MANY2(() => this.CONSUME3(Whitespace));
+    // "in" keyword: match TemplateText or Identifier with "in" content
     this.OR([
-      { ALT: () => this.CONSUME(InKeyword, { LABEL: 'inKeyword' }) },
       {
         GATE: () => {
           const la = this.LA(1);
-          // Check if it's any text fragment token with "in" content
-          const isTextToken = la.tokenType.CATEGORIES?.some((c: any) => c.name === 'AnyTextFragment') ?? false;
-          return isTextToken && la.image.trim() === 'in';
+          return (la.tokenType.CATEGORIES?.some((c: any) => c.name === 'AnyTextFragment') ?? false) && la.image.trim() === 'in';
         },
         ALT: () => {
-          // TemplateText or any AnyTextFragment capturing "in " or similar
-          this.CONSUME(AnyTextFragment, { LABEL: 'inText' });
+          this.CONSUME(AnyTextFragment, { LABEL: 'inKeyword' });
         },
       },
       {
@@ -380,11 +377,12 @@ export class VtlParser extends CstParser {
           return la.tokenType.name === 'Identifier' && la.image === 'in';
         },
         ALT: () => {
-          // Identifier "in" + optional whitespace/newlines
-          this.CONSUME(Identifier, { LABEL: 'inWord' });
+          this.CONSUME(Identifier, { LABEL: 'inKeyword' });
         },
       },
     ]);
+    // Optional whitespace after "in" keyword
+    this.MANY3(() => this.CONSUME4(Whitespace));
     this.SUBRULE(this.expression, { LABEL: 'iterable' });
     this.CONSUME(RParen);
     this.MANY({
@@ -775,8 +773,13 @@ export class VtlParser extends CstParser {
   // Array literal [elem1, elem2] or range [1..3]
   arrayLiteral = this.RULE('arrayLiteral', () => {
     this.CONSUME(LBracket);
+    // Optional whitespace after [
+    this.MANY1(() => this.OR1([
+      { ALT: () => this.CONSUME(Whitespace) },
+      { ALT: () => this.CONSUME(Newline) },
+    ]));
     this.OPTION(() => {
-      this.OR([
+      this.OR2([
         {
           GATE: () => {
             const la1 = this.LA(1);
@@ -792,14 +795,29 @@ export class VtlParser extends CstParser {
         {
           ALT: () => {
             this.SUBRULE1(this.expression);
-            this.MANY(() => {
+            this.MANY2(() => {
+              // Optional whitespace before comma
+              this.MANY3(() => this.OR3([
+                { ALT: () => this.CONSUME1(Whitespace) },
+                { ALT: () => this.CONSUME1(Newline) },
+              ]));
               this.CONSUME(Comma);
+              // Optional whitespace after comma
+              this.MANY4(() => this.OR4([
+                { ALT: () => this.CONSUME2(Whitespace) },
+                { ALT: () => this.CONSUME2(Newline) },
+              ]));
               this.SUBRULE2(this.expression);
             });
           },
         },
       ]);
     });
+    // Optional whitespace before ]
+    this.MANY5(() => this.OR5([
+      { ALT: () => this.CONSUME3(Whitespace) },
+      { ALT: () => this.CONSUME3(Newline) },
+    ]));
     this.CONSUME(RBracket);
   });
 

@@ -429,25 +429,11 @@ export const TemplateText = createToken({
             break;
           }
         }
-        // Always stop at: # $ =
-        if (ch === 35 || ch === 36 || ch === 61) break;
-        
-        // For [ ] ( ) { }, in text contexts these are usually part of the text
-        // Only stop if they're followed by $ or # which clearly start expressions
-        // Note: In VTL, expressions like ($foo) only appear in directive contexts like #if($foo)
-        // In plain text, parentheses are just text characters
-        if (ch === 91 || ch === 93 || ch === 40 || ch === 41 || ch === 123 || ch === 125) {
-          // Check next character - only stop if it's $ or # (expression markers)
-          if (i + 1 < len) {
-            const nextCh = text.charCodeAt(i + 1);
-            if (nextCh === 36 || nextCh === 35) { // $ or #
-              // Might be start of expression - stop here
-              break;
-            }
-            // Otherwise, include the paren/bracket/brace as text and continue
-          }
-          // Include this character (paren/bracket/brace) in the text
-          // The loop will increment i and continue
+        // Always stop at: # $ = [ ] ( ) { }
+        // These are all special characters in Velocity and should be their own tokens
+        if (ch === 35 || ch === 36 || ch === 61 ||
+            ch === 91 || ch === 93 || ch === 40 || ch === 41 || ch === 123 || ch === 125) {
+          break;
         }
         // Stop at comma only if it's not followed by space (likely part of expression)
         if (ch === 44) { // comma
