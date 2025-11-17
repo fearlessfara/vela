@@ -161,21 +161,13 @@ export class VtlParser extends CstParser {
       {
         GATE: () => {
           const t = this.LA(1).tokenType;
-          // Check if this is a macro invocation: Hash + Identifier + LParen
-          if (t === Hash) {
-            const t2 = this.LA(2)?.tokenType;
-            const t3 = this.LA(3)?.tokenType;
-            // If it's #identifier(, it's a macro invocation, not text
-            if (t2 === Identifier && t3 === LParen) {
-              return false; // Don't parse as text
-            }
-          }
           return !(
             t === DollarRef || t === QuietRef || t === InterpStart ||
             t === IfDirective || t === ElseIfDirective || t === ElseDirective ||
             t === SetDirective || t === ForEachDirective || t === BreakDirective ||
             t === StopDirective || t === MacroDirective || t === EndDirective ||
-            t === EvaluateDirective || t === ParseDirective || t === IncludeDirective
+            t === EvaluateDirective || t === ParseDirective || t === IncludeDirective ||
+            t === Hash // Hash can start a macro invocation
           );
         },
         ALT: () => this.SUBRULE(this.text),
@@ -188,8 +180,41 @@ export class VtlParser extends CstParser {
   // Text: non-directive, non-interpolation content (up to next # or $)
   // Per Java Parser.jjt line 1580: Whitespace can also be text
   text = this.RULE('text', () => {
-    this.AT_LEAST_ONE(() => {
-      this.CONSUME(AnyTextFragment);
+    this.AT_LEAST_ONE({
+      GATE: () => {
+        const t = this.LA(1).tokenType;
+        // Stop consuming text before directive/interpolation tokens
+        if (
+          t === DollarRef || t === QuietRef || t === InterpStart ||
+          t === IfDirective || t === ElseIfDirective || t === ElseDirective ||
+          t === SetDirective || t === ForEachDirective || t === BreakDirective ||
+          t === StopDirective || t === MacroDirective || t === EndDirective ||
+          t === EvaluateDirective || t === ParseDirective || t === IncludeDirective
+        ) {
+          return false;
+        }
+        // Also stop before macro invocation patterns: Hash + Identifier + LParen
+        if (t === Hash) {
+          let idx = 2;
+          // Skip whitespace
+          while (this.LA(idx)?.tokenType === Whitespace || this.LA(idx)?.tokenType === Newline) {
+            idx++;
+          }
+          if (this.LA(idx)?.tokenType === Identifier) {
+            idx++;
+            while (this.LA(idx)?.tokenType === Whitespace || this.LA(idx)?.tokenType === Newline) {
+              idx++;
+            }
+            if (this.LA(idx)?.tokenType === LParen) {
+              return false; // Stop before macro invocation
+            }
+          }
+        }
+        return true; // Continue consuming text
+      },
+      DEF: () => {
+        this.CONSUME(AnyTextFragment);
+      },
     });
   });
 

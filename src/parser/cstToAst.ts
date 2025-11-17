@@ -126,7 +126,9 @@ function extractPrefixPostfix(segments: Segment[]): Segment[] {
       }
 
       // Extract prefix from previous Text segment if it ends with whitespace
-      if (prevSegment && prevSegment.type === 'Text') {
+      // Skip for MacroDirective - preserve blank lines before macro definitions
+      const isMacroDirective = segment.type === 'MacroDirective';
+      if (!isMacroDirective && prevSegment && prevSegment.type === 'Text') {
         const text = prevSegment.value;
         // Match trailing whitespace (spaces, tabs, newlines)
         // Capture indentation before directive: matches whitespace after last newline
@@ -142,11 +144,8 @@ function extractPrefixPostfix(segments: Segment[]): Segment[] {
             result.pop();
           }
         }
-        // Also check if entire previous segment is just a newline (for prefix capture)
-        else if (text.match(/^\r?\n$/)) {
-          (segment as any).prefix = text;
-          result.pop(); // Remove the newline Text segment
-        }
+        // Do NOT extract newline-only Text segments as prefix
+        // Newlines should be preserved in the output, only indentation (spaces/tabs) is prefix
       }
 
       // Extract postfix from next Text segment if it starts with whitespace/newline
@@ -241,8 +240,9 @@ function applySpaceGobbling(segments: Segment[], mode: SpaceGobblingMode): Segme
     // Check if current segment is a block directive
     const isBlockDirective =
       segment.type === 'IfDirective' ||
-      segment.type === 'ForEachDirective' ||
-      segment.type === 'MacroDirective';
+      segment.type === 'ForEachDirective';
+      // Note: MacroDirective is NOT included because macro definitions don't output anything
+      // and should not affect spacing around them (like comments)
 
     // Check if current segment is a line directive that gobbles trailing newlines
     // Per Java Parser.jjt line 1931: In "lines" mode, line directives gobble trailing newlines
@@ -271,7 +271,7 @@ function applySpaceGobbling(segments: Segment[], mode: SpaceGobblingMode): Segme
     const nextIsDirective = nextSegment && (
       nextSegment.type === 'IfDirective' ||
       nextSegment.type === 'ForEachDirective' ||
-      nextSegment.type === 'MacroDirective' ||
+      // Note: MacroDirective is NOT included - whitespace before macro definitions is preserved
       nextSegment.type === 'SetDirective' ||
       nextSegment.type === 'EvaluateDirective' ||
       nextSegment.type === 'ParseDirective' ||

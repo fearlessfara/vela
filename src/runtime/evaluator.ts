@@ -97,6 +97,9 @@ export class VtlEvaluator {
       case 'MacroDirective':
         this.evaluateMacroDirective(segment);
         break;
+      case 'MacroInvocation':
+        this.evaluateMacroInvocation(segment);
+        break;
       case 'EvaluateDirective':
         this.evaluateEvaluateDirective(segment);
         break;
@@ -294,15 +297,58 @@ export class VtlEvaluator {
   }
 
   private evaluateMacroDirective(macroDirective: any): void {
-    // Write prefix/postfix for macro directive
-    this.writePrefix(macroDirective);
-    // Stub implementation - macros not yet supported
+    // Macro definitions don't output anything - they just register the macro
+    // No prefix/postfix output (unlike other directives)
     this.scopeManager.defineMacro(
       macroDirective.name,
       macroDirective.parameters,
       macroDirective.body
     );
-    this.writePostfix(macroDirective);
+  }
+
+  private evaluateMacroInvocation(macroInvocation: any): void {
+    // Look up the macro definition
+    const macro = this.scopeManager.getMacro(macroInvocation.name);
+
+    if (!macro) {
+      // Macro not found - output the invocation as literal text (Java Velocity behavior)
+      this.stringBuilder.appendString(`#${macroInvocation.name}(`);
+      for (let i = 0; i < macroInvocation.arguments.length; i++) {
+        if (i > 0) this.stringBuilder.appendString(', ');
+        const argValue = this.evaluateExpression(macroInvocation.arguments[i]);
+        this.stringBuilder.appendString(String(argValue));
+      }
+      this.stringBuilder.appendString(')');
+      return;
+    }
+
+    // Evaluate the arguments
+    const argValues: any[] = [];
+    for (const argExpr of macroInvocation.arguments) {
+      argValues.push(this.evaluateExpression(argExpr));
+    }
+
+    // Create a new scope for the macro execution
+    this.scopeManager.pushScope();
+
+    // Bind parameters to argument values
+    for (let i = 0; i < macro.parameters.length; i++) {
+      const paramName = macro.parameters[i];
+      if (!paramName) continue;
+      // Strip the $ from parameter names if present
+      const cleanName = paramName.startsWith('$') ? paramName.substring(1) : paramName;
+      const argValue = i < argValues.length ? argValues[i] : null;
+      this.scopeManager.setVariable(cleanName, argValue);
+    }
+
+    // Execute the macro body
+    for (const bodySegment of macro.body) {
+      if (this.shouldBreak || this.shouldStop) break;
+      this.evaluateSegment(bodySegment);
+    }
+
+    // Pop the macro scope
+    this.scopeManager.popScope();
   }
 
   private evaluateEvaluateDirective(evaluateDirective: EvaluateDirective): void {
