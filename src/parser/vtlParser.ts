@@ -147,6 +147,15 @@ export class VtlParser extends CstParser {
         ALT: () => this.SUBRULE(this.arrayLiteral),
       },
       {
+        // Segment-based template parsing (default for Velocity templates)
+        ALT: () => {
+          this.MANY(() => {
+            this.SUBRULE(this.segment);
+          });
+        },
+      },
+      {
+        // Bare expression parsing (for programmatic use)
         GATE: () => {
           const t = this.LA(1).tokenType;
           return t === DollarRef || t === QuietRef || t === InterpStart ||
@@ -154,13 +163,6 @@ export class VtlParser extends CstParser {
                  t === NullLiteral || t === Identifier;
         },
         ALT: () => this.SUBRULE(this.expression),
-      },
-      {
-        ALT: () => {
-          this.MANY(() => {
-            this.SUBRULE(this.segment);
-          });
-        },
       },
     ]);
   });
@@ -798,11 +800,16 @@ export class VtlParser extends CstParser {
       {
         ALT: () => {
           this.OR2([
-            { ALT: () => this.CONSUME(Not, { LABEL: 'operator' }) },
-            { ALT: () => this.CONSUME(NotWord, { LABEL: 'operator' }) },
-            { ALT: () => this.CONSUME(Plus, { LABEL: 'operator' }) },
-            { ALT: () => this.CONSUME(Minus, { LABEL: 'operator' }) },
+            { ALT: () => this.CONSUME(Not) },
+            { ALT: () => this.CONSUME(NotWord) },
+            { ALT: () => this.CONSUME(Plus) },
+            { ALT: () => this.CONSUME(Minus) },
           ]);
+          // Consume optional whitespace after the operator
+          this.MANY(() => this.OR3([
+            { ALT: () => this.CONSUME(Whitespace) },
+            { ALT: () => this.CONSUME(Newline) },
+          ]));
           this.SUBRULE(this.unary);
         },
       },

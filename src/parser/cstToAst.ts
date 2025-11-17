@@ -1076,11 +1076,24 @@ function unaryToAst(unary: CstNode): Expression {
     return primaryToAst(unary.children.primary[0] as CstNode);
   }
 
-  const operator = getUnaryOperator(unary);
+  // Get the operator directly from children
+  let operator: UnaryOperator;
+  if (unary.children.Not?.[0]) {
+    operator = '!';
+  } else if (unary.children.NotWord?.[0]) {
+    operator = '!';
+  } else if (unary.children.Plus?.[0]) {
+    operator = '+';
+  } else if (unary.children.Minus?.[0]) {
+    operator = '-';
+  } else {
+    throw new Error(`Invalid unary operation. Found children: ${Object.keys(unary.children || {}).join(', ')}`);
+  }
+
   const operand = unary.children.unary?.[0] as CstNode;
-  
+
   if (!operand) {
-    throw new Error('Invalid unary operation');
+    throw new Error('Invalid unary operation - no operand');
   }
 
   return {
@@ -1133,26 +1146,6 @@ function primaryBaseToAst(pb: CstNode): Expression {
   if (c.arrayLiteral) return arrayLiteralToAst(c.arrayLiteral[0] as CstNode);
   if (c.expression) return expressionToAst(c.expression[0] as CstNode);
   throw new Error('Invalid primaryBase');
-}
-
-function getUnaryOperator(node: CstNode): UnaryOperator {
-  // Check for operators (may be under 'operator' label or by token type)
-  const op = node.children.operator?.[0] ||
-             node.children.Not?.[0] ||
-             node.children.NotWord?.[0] ||
-             node.children.Plus?.[0] ||
-             node.children.Minus?.[0];
-
-  if (!op) {
-    throw new Error('Invalid unary operator');
-  }
-
-  const image = (op as any).image;
-  if (image === '!' || image === 'not') return '!';
-  if (image === '+') return '+';
-  if (image === '-') return '-';
-
-  throw new Error(`Unknown unary operator: ${image}`);
 }
 
 function getLocation(_node: CstNode | CstElement): SourceLocation {

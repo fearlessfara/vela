@@ -32,6 +32,9 @@ import {
 export type EvaluationContext = Map<string, any> | Record<string, any>;
 export type SpaceGobblingMode = 'none' | 'bc' | 'lines' | 'structured';
 
+// Sentinel value for quiet references that evaluate to undefined
+const QUIET_UNDEFINED = Symbol('QUIET_UNDEFINED');
+
 export class VtlEvaluator {
   private scopeManager: ScopeManager;
   private stringBuilder: StringBuilder;
@@ -128,6 +131,20 @@ export class VtlEvaluator {
            expr.type === 'ArrayAccess';
   }
 
+  /**
+   * Check if an expression has a quiet variable reference at its root.
+   * For $!obj.property, this returns true because the root $!obj is quiet.
+   */
+  private hasQuietRoot(expr: any): boolean {
+    if (expr.type === 'VariableReference') {
+      return expr.quiet;
+    }
+    if (expr.type === 'MemberAccess' || expr.type === 'ArrayAccess' || expr.type === 'FunctionCall') {
+      return this.hasQuietRoot(expr.object);
+    }
+    return false;
+  }
+
   private evaluateInterpolation(interp: Interpolation): void {
     // Check if this is a valid interpolation expression
     // Java Velocity only evaluates variable references, property access, method calls, and array access
@@ -142,15 +159,25 @@ export class VtlEvaluator {
 
     const value = this.evaluateExpression(interp.expression);
 
+    // Handle quiet undefined - always output empty string
+    if (value === QUIET_UNDEFINED) {
+      return; // Output nothing
+    }
+
     // Handle null/undefined values:
-    // - undefined from missing variable:
-    //   - Braced ${missing}: output literally as ${missing}
-    //   - Unbraced $missing: output empty string
-    // - null from expression evaluation (e.g., $name.length on string, or $obj.missing):
-    //   - Both braced and unbraced: output literally
-    if (value === null) {
-      // Expression evaluated to null (e.g., property doesn't exist on primitive)
-      // Output literally for both braced and unbraced
+    // - If the expression has a quiet root ($!...): output nothing
+    // - Otherwise:
+    //   - undefined from missing variable: output literally
+    //   - null from expression evaluation: output literally
+    const hasQuiet = this.hasQuietRoot(interp.expression);
+
+    if (value === null || value === undefined) {
+      // If the root is quiet, output nothing
+      if (hasQuiet) {
+        return;
+      }
+
+      // Expression evaluated to null/undefined - output literally
       if (interp.braced) {
         this.stringBuilder.appendString('${');
         this.stringBuilder.appendString(this.expressionToString(interp.expression));
@@ -160,18 +187,6 @@ export class VtlEvaluator {
         this.stringBuilder.appendString(this.expressionToLiteralReference(interp.expression));
       }
       return;
-    }
-
-    if (value === undefined) {
-      // Variable doesn't exist
-      if (interp.braced) {
-        // Braced ${missing}: output literally as ${missing}
-        this.stringBuilder.appendString('${');
-        this.stringBuilder.appendString(this.expressionToString(interp.expression));
-        this.stringBuilder.appendString('}');
-        return;
-      }
-      // Unbraced $missing: output empty string (handled by appendInterpolatedValue)
     }
 
     this.appendInterpolatedValue(value);
@@ -613,11 +628,13 @@ export class VtlEvaluator {
       }
 
       if (ref.quiet) {
-        return '';
+        // Return sentinel value for quiet undefined references
+        // This allows member access chains like $!obj.missing.property to stay quiet
+        return QUIET_UNDEFINED;
       }
       // For non-quiet undefined variables, return undefined (not empty string)
       // This allows braced interpolations like ${missing} to detect and output literally
-      // While unbraced $missing will be handled in evaluateInterpolation to output empty
+      // While unbraced $missing will be handled in evaluateInterpolation to output literal
       return undefined;
     }
 
@@ -626,6 +643,11 @@ export class VtlEvaluator {
 
   private evaluateMemberAccess(member: MemberAccess): any {
     const object = this.evaluateExpression(member.object);
+
+    // Propagate quiet undefined through member access chains
+    if (object === QUIET_UNDEFINED) {
+      return QUIET_UNDEFINED;
+    }
 
     if (object === null || object === undefined) {
       return null;
