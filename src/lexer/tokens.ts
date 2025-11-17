@@ -511,6 +511,188 @@ export const Range = createToken({
   pattern: /\.\./,
 });
 
+// Word-form comparison operators (must check expression context)
+export const EqWord = createToken({
+  name: 'EqWord',
+  pattern: {
+    exec: (text: string, offset: number) => {
+      // Check for "eq" as a whole word
+      if (text.substr(offset, 2) !== 'eq') return null;
+      // Must be followed by non-identifier character
+      const nextChar = text[offset + 2];
+      if (nextChar && /[a-zA-Z0-9_$]/.test(nextChar)) return null;
+      // Only match if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['eq'] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
+});
+
+export const NeWord = createToken({
+  name: 'NeWord',
+  pattern: {
+    exec: (text: string, offset: number) => {
+      // Check for "ne" as a whole word
+      if (text.substr(offset, 2) !== 'ne') return null;
+      // Must be followed by non-identifier character
+      const nextChar = text[offset + 2];
+      if (nextChar && /[a-zA-Z0-9_$]/.test(nextChar)) return null;
+      // Only match if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['ne'] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
+});
+
+export const GtWord = createToken({
+  name: 'GtWord',
+  pattern: {
+    exec: (text: string, offset: number) => {
+      // Check for "gt" as a whole word
+      if (text.substr(offset, 2) !== 'gt') return null;
+      // Must be followed by non-identifier character
+      const nextChar = text[offset + 2];
+      if (nextChar && /[a-zA-Z0-9_$]/.test(nextChar)) return null;
+      // Only match if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['gt'] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
+});
+
+export const GeWord = createToken({
+  name: 'GeWord',
+  pattern: {
+    exec: (text: string, offset: number) => {
+      // Check for "ge" as a whole word
+      if (text.substr(offset, 2) !== 'ge') return null;
+      // Must be followed by non-identifier character
+      const nextChar = text[offset + 2];
+      if (nextChar && /[a-zA-Z0-9_$]/.test(nextChar)) return null;
+      // Only match if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['ge'] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
+});
+
+export const LtWord = createToken({
+  name: 'LtWord',
+  pattern: {
+    exec: (text: string, offset: number) => {
+      // Check for "lt" as a whole word
+      if (text.substr(offset, 2) !== 'lt') return null;
+      // Must be followed by non-identifier character
+      const nextChar = text[offset + 2];
+      if (nextChar && /[a-zA-Z0-9_$]/.test(nextChar)) return null;
+      // Only match if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['lt'] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
+});
+
+export const LeWord = createToken({
+  name: 'LeWord',
+  pattern: {
+    exec: (text: string, offset: number) => {
+      // Check for "le" as a whole word
+      if (text.substr(offset, 2) !== 'le') return null;
+      // Must be followed by non-identifier character
+      const nextChar = text[offset + 2];
+      if (nextChar && /[a-zA-Z0-9_$]/.test(nextChar)) return null;
+      // Only match if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['le'] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
+});
+
+// Word-form logical operators
+export const AndWord = createToken({
+  name: 'AndWord',
+  pattern: {
+    exec: (text: string, offset: number) => {
+      // Check for "and" as a whole word
+      if (text.substr(offset, 3) !== 'and') return null;
+      // Must be followed by non-identifier character
+      const nextChar = text[offset + 3];
+      if (nextChar && /[a-zA-Z0-9_$]/.test(nextChar)) return null;
+      // Only match if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['and'] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
+});
+
+export const OrWord = createToken({
+  name: 'OrWord',
+  pattern: {
+    exec: (text: string, offset: number) => {
+      // Check for "or" as a whole word
+      if (text.substr(offset, 2) !== 'or') return null;
+      // Must be followed by non-identifier character
+      const nextChar = text[offset + 2];
+      if (nextChar && /[a-zA-Z0-9_$]/.test(nextChar)) return null;
+      // Only match if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['or'] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
+});
+
+export const NotWord = createToken({
+  name: 'NotWord',
+  pattern: {
+    exec: (text: string, offset: number) => {
+      // Check for "not" as a whole word
+      if (text.substr(offset, 3) !== 'not') return null;
+      // Must be followed by non-identifier character
+      const nextChar = text[offset + 3];
+      if (nextChar && /[a-zA-Z0-9_$]/.test(nextChar)) return null;
+      // Only match if we're in an expression context
+      if (!isInExpressionContext(text, offset)) return null;
+      const result = ['not'] as unknown as RegExpExecArray;
+      result.index = offset;
+      result.input = text;
+      return result;
+    }
+  },
+  line_breaks: false,
+});
+
 // Escaped directives (must come before individual directive tokens)
 // Matches patterns like \#end, \#if, \#set, etc.
 // Pattern: optional double-escapes + backslash + # + directive name
@@ -776,7 +958,19 @@ export const allTokens: TokenType[] = [
   BooleanLiteral,
   NullLiteral,
 
-  // Operators (longer first)
+  // Word-form operators (must come before Identifier to avoid being matched as identifiers)
+  // Longer words first
+  AndWord,
+  NotWord,
+  EqWord,
+  NeWord,
+  GtWord,
+  GeWord,
+  LtWord,
+  LeWord,
+  OrWord,
+
+  // Symbol operators (longer first)
   Le,
   Ge,
   Eq,

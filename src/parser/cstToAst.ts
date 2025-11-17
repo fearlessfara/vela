@@ -968,9 +968,19 @@ function logicalAndToAst(logicalAnd: CstNode): Expression {
 function equalityToAst(equality: CstNode): Expression {
   const relationals = equality.children.relational || [];
   let expr: Expression = relationalToAst(relationals[0] as CstNode);
-  const ops = ([...(equality.children.Eq || []), ...(equality.children.Ne || [])] as any[])
+  const ops = ([
+    ...(equality.children.Eq || []),
+    ...(equality.children.Ne || []),
+    ...(equality.children.EqWord || []),
+    ...(equality.children.NeWord || []),
+  ] as any[])
     .sort((a, b) => (a.startOffset ?? 0) - (b.startOffset ?? 0))
-    .map(t => t.image as '==' | '!=') as Array<'==' | '!='>;
+    .map(t => {
+      // Map word-form operators to their symbol equivalents
+      if (t.image === 'eq') return '==';
+      if (t.image === 'ne') return '!=';
+      return t.image as '==' | '!=';
+    }) as Array<'==' | '!='>;
   for (let i = 0; i < ops.length; i++) {
     const operator = ops[i]! as BinaryOperator;
     expr = {
@@ -992,9 +1002,20 @@ function relationalToAst(relational: CstNode): Expression {
     ...(relational.children.Le || []),
     ...(relational.children.Gt || []),
     ...(relational.children.Ge || []),
+    ...(relational.children.LtWord || []),
+    ...(relational.children.LeWord || []),
+    ...(relational.children.GtWord || []),
+    ...(relational.children.GeWord || []),
   ] as any[])
     .sort((a, b) => (a.startOffset ?? 0) - (b.startOffset ?? 0))
-    .map(t => t.image as '<' | '<=' | '>' | '>=') as Array<'<' | '<=' | '>' | '>='>;
+    .map(t => {
+      // Map word-form operators to their symbol equivalents
+      if (t.image === 'lt') return '<';
+      if (t.image === 'le') return '<=';
+      if (t.image === 'gt') return '>';
+      if (t.image === 'ge') return '>=';
+      return t.image as '<' | '<=' | '>' | '>=';
+    }) as Array<'<' | '<=' | '>' | '>='>;
   for (let i = 0; i < ops.length; i++) {
     const operator = ops[i]! as BinaryOperator;
     expr = {
@@ -1115,10 +1136,23 @@ function primaryBaseToAst(pb: CstNode): Expression {
 }
 
 function getUnaryOperator(node: CstNode): UnaryOperator {
-  if (node.children.Not?.[0]) return '!';
-  if (node.children.Plus?.[0]) return '+';
-  if (node.children.Minus?.[0]) return '-';
-  throw new Error('Invalid unary operator');
+  // Check for operators (may be under 'operator' label or by token type)
+  const op = node.children.operator?.[0] ||
+             node.children.Not?.[0] ||
+             node.children.NotWord?.[0] ||
+             node.children.Plus?.[0] ||
+             node.children.Minus?.[0];
+
+  if (!op) {
+    throw new Error('Invalid unary operator');
+  }
+
+  const image = (op as any).image;
+  if (image === '!' || image === 'not') return '!';
+  if (image === '+') return '+';
+  if (image === '-') return '-';
+
+  throw new Error(`Unknown unary operator: ${image}`);
 }
 
 function getLocation(_node: CstNode | CstElement): SourceLocation {
