@@ -350,8 +350,8 @@ export class VtlParser extends CstParser {
       { ALT: () => this.CONSUME4(Newline) },
     ]));
     this.CONSUME(RParen);
-    // Capture optional whitespace after directive as postfix
-    this.OPTION1(() => this.CONSUME5(Whitespace, { LABEL: 'postfix' }));
+    // Don't capture whitespace-only as postfix - let extractPrefixPostfix handle it from Text segments
+    // Postfix should only include newlines, not standalone whitespace
   });
 
   // #foreach directive
