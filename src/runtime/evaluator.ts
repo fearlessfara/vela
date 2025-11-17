@@ -249,10 +249,12 @@ export class VtlEvaluator {
   private writePrefix(segment: Segment): void {
     if (!segment.prefix) return;
 
-    // spaceGobbling < LINES means NONE or BC
-    // In these modes, prefix is written
-    // In LINES and STRUCTURED modes, prefix is gobbled (represents indentation before directive)
-    if (this.spaceGobbling === 'none' || this.spaceGobbling === 'bc') {
+    // Write prefix if:
+    // 1. spaceGobbling is 'none' or 'bc' (always preserve), OR
+    // 2. Prefix contains newlines (blank lines should be preserved even in 'lines' mode)
+    //    Only pure indentation (spaces/tabs) is gobbled in 'lines' mode
+    const hasNewline = /\r?\n/.test(segment.prefix);
+    if (this.spaceGobbling === 'none' || this.spaceGobbling === 'bc' || hasNewline) {
       this.stringBuilder.append(segment.prefix);
     }
   }
@@ -432,6 +434,9 @@ export class VtlEvaluator {
   }
 
   private evaluateMacroInvocation(macroInvocation: any): void {
+    // Write prefix before macro invocation
+    this.writePrefix(macroInvocation);
+
     // Look up the macro definition
     const macro = this.scopeManager.getMacro(macroInvocation.name);
 
@@ -444,6 +449,7 @@ export class VtlEvaluator {
         this.stringBuilder.appendString(String(argValue));
       }
       this.stringBuilder.appendString(')');
+      this.writePostfix(macroInvocation);
       return;
     }
 
@@ -474,6 +480,9 @@ export class VtlEvaluator {
 
     // Pop the macro scope
     this.scopeManager.popScope();
+
+    // Write postfix after macro invocation
+    this.writePostfix(macroInvocation);
   }
 
   private evaluateEvaluateDirective(evaluateDirective: EvaluateDirective): void {

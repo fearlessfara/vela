@@ -114,12 +114,11 @@ function extractPrefixPostfix(segments: Segment[]): Segment[] {
       // This must be done BEFORE prefix extraction, using the previous segment's ORIGINAL value
       // A directive is NOT on a directive-only line if there's content before it on the same line
       // If previous segment ends with newline, the directive is on a new line
-      const prevInResult = result[result.length - 1];
-      const hasContentBefore = prevInResult &&
-                              prevInResult.type !== 'Text' ||
-                              (prevInResult && prevInResult.type === 'Text' &&
-                               !prevInResult.value.match(/\r?\n$/) &&
-                               prevInResult.value.length > 0);
+      const hasContentBefore = prevSegment && (
+                              prevSegment.type !== 'Text' ||
+                              (prevSegment.type === 'Text' &&
+                               !prevSegment.value.match(/\r?\n$/) &&
+                               prevSegment.value.length > 0));
       if (hasContentBefore) {
         (segment as any).hasContentBefore = true;
       }
