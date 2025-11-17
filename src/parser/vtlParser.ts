@@ -556,124 +556,218 @@ export class VtlParser extends CstParser {
 
   logicalOr = this.RULE('logicalOr', () => {
     this.SUBRULE(this.logicalAnd);
-    this.MANY1(() => {
-      // Allow whitespace before operator
-      this.MANY2(() => this.OR1([
-        { ALT: () => this.CONSUME1(Whitespace) },
-        { ALT: () => this.CONSUME1(Newline) },
-      ]));
-      this.CONSUME(Or);
-      // Allow whitespace after operator
-      this.MANY3(() => this.OR2([
-        { ALT: () => this.CONSUME2(Whitespace) },
-        { ALT: () => this.CONSUME2(Newline) },
-      ]));
-      this.SUBRULE2(this.logicalAnd);
+    this.MANY({
+      GATE: () => {
+        let i = 1;
+        while (i <= 5) {
+          const la = this.LA(i);
+          if (!la || !la.tokenType) return false;
+          if (la.tokenType === Or) return true;
+          if (la.tokenType !== Whitespace && la.tokenType !== Newline) return false;
+          i++;
+        }
+        return false;
+      },
+      DEF: () => {
+        this.MANY1(() => {
+          this.OR1([
+            { ALT: () => this.CONSUME1(Whitespace) },
+            { ALT: () => this.CONSUME1(Newline) },
+          ]);
+        });
+        this.CONSUME(Or);
+        this.MANY2(() => {
+          this.OR2([
+            { ALT: () => this.CONSUME2(Whitespace) },
+            { ALT: () => this.CONSUME2(Newline) },
+          ]);
+        });
+        this.SUBRULE1(this.logicalAnd);
+      }
     });
   });
 
   logicalAnd = this.RULE('logicalAnd', () => {
     this.SUBRULE(this.equality);
-    this.MANY1(() => {
-      // Allow whitespace before operator
-      this.MANY2(() => this.OR1([
-        { ALT: () => this.CONSUME1(Whitespace) },
-        { ALT: () => this.CONSUME1(Newline) },
-      ]));
-      this.CONSUME(And);
-      // Allow whitespace after operator
-      this.MANY3(() => this.OR2([
-        { ALT: () => this.CONSUME2(Whitespace) },
-        { ALT: () => this.CONSUME2(Newline) },
-      ]));
-      this.SUBRULE2(this.equality);
+    this.MANY({
+      GATE: () => {
+        let i = 1;
+        while (i <= 5) {
+          const la = this.LA(i);
+          if (!la || !la.tokenType) return false;
+          if (la.tokenType === And) return true;
+          if (la.tokenType !== Whitespace && la.tokenType !== Newline) return false;
+          i++;
+        }
+        return false;
+      },
+      DEF: () => {
+        this.MANY1(() => {
+          this.OR1([
+            { ALT: () => this.CONSUME1(Whitespace) },
+            { ALT: () => this.CONSUME1(Newline) },
+          ]);
+        });
+        this.CONSUME(And);
+        this.MANY2(() => {
+          this.OR2([
+            { ALT: () => this.CONSUME2(Whitespace) },
+            { ALT: () => this.CONSUME2(Newline) },
+          ]);
+        });
+        this.SUBRULE1(this.equality);
+      }
     });
   });
 
   equality = this.RULE('equality', () => {
     this.SUBRULE(this.relational);
-    this.MANY1(() => {
-      // Allow whitespace before operator
-      this.MANY2(() => this.OR1([
-        { ALT: () => this.CONSUME1(Whitespace) },
-        { ALT: () => this.CONSUME1(Newline) },
-      ]));
-      this.OR2([
-        { ALT: () => this.CONSUME(Eq) },
-        { ALT: () => this.CONSUME(Ne) },
-      ]);
-      // Allow whitespace after operator
-      this.MANY3(() => this.OR3([
-        { ALT: () => this.CONSUME2(Whitespace) },
-        { ALT: () => this.CONSUME2(Newline) },
-      ]));
-      this.SUBRULE2(this.relational);
+    this.MANY({
+      GATE: () => {
+        let i = 1;
+        while (i <= 5) {
+          const la = this.LA(i);
+          if (!la || !la.tokenType) return false;
+          if (la.tokenType === Eq || la.tokenType === Ne) return true;
+          if (la.tokenType !== Whitespace && la.tokenType !== Newline) return false;
+          i++;
+        }
+        return false;
+      },
+      DEF: () => {
+        this.MANY1(() => {
+          this.OR1([
+            { ALT: () => this.CONSUME1(Whitespace) },
+            { ALT: () => this.CONSUME1(Newline) },
+          ]);
+        });
+        this.OR2([
+          { ALT: () => this.CONSUME(Eq) },
+          { ALT: () => this.CONSUME(Ne) },
+        ]);
+        this.MANY2(() => {
+          this.OR3([
+            { ALT: () => this.CONSUME2(Whitespace) },
+            { ALT: () => this.CONSUME2(Newline) },
+          ]);
+        });
+        this.SUBRULE1(this.relational);
+      }
     });
   });
 
   relational = this.RULE('relational', () => {
     this.SUBRULE(this.additive);
-    this.MANY1(() => {
-      // Allow whitespace before operator
-      this.MANY2(() => this.OR1([
-        { ALT: () => this.CONSUME1(Whitespace) },
-        { ALT: () => this.CONSUME1(Newline) },
-      ]));
-      this.OR2([
-        { ALT: () => this.CONSUME(Lt) },
-        { ALT: () => this.CONSUME(Le) },
-        { ALT: () => this.CONSUME(Gt) },
-        { ALT: () => this.CONSUME(Ge) },
-      ]);
-      // Allow whitespace after operator
-      this.MANY3(() => this.OR3([
-        { ALT: () => this.CONSUME2(Whitespace) },
-        { ALT: () => this.CONSUME2(Newline) },
-      ]));
-      this.SUBRULE2(this.additive);
+    this.MANY({
+      GATE: () => {
+        let i = 1;
+        while (i <= 5) {
+          const la = this.LA(i);
+          if (!la || !la.tokenType) return false;
+          if (la.tokenType === Lt || la.tokenType === Le || la.tokenType === Gt || la.tokenType === Ge) return true;
+          if (la.tokenType !== Whitespace && la.tokenType !== Newline) return false;
+          i++;
+        }
+        return false;
+      },
+      DEF: () => {
+        this.MANY1(() => {
+          this.OR1([
+            { ALT: () => this.CONSUME1(Whitespace) },
+            { ALT: () => this.CONSUME1(Newline) },
+          ]);
+        });
+        this.OR2([
+          { ALT: () => this.CONSUME(Lt) },
+          { ALT: () => this.CONSUME(Le) },
+          { ALT: () => this.CONSUME(Gt) },
+          { ALT: () => this.CONSUME(Ge) },
+        ]);
+        this.MANY2(() => {
+          this.OR3([
+            { ALT: () => this.CONSUME2(Whitespace) },
+            { ALT: () => this.CONSUME2(Newline) },
+          ]);
+        });
+        this.SUBRULE1(this.additive);
+      }
     });
   });
 
   additive = this.RULE('additive', () => {
     this.SUBRULE(this.multiplicative);
-    this.MANY1(() => {
-      // Allow whitespace before operator
-      this.MANY2(() => this.OR1([
-        { ALT: () => this.CONSUME1(Whitespace) },
-        { ALT: () => this.CONSUME1(Newline) },
-      ]));
-      this.OR2([
-        { ALT: () => this.CONSUME(Plus) },
-        { ALT: () => this.CONSUME(Minus) },
-      ]);
-      // Allow whitespace after operator
-      this.MANY3(() => this.OR3([
-        { ALT: () => this.CONSUME2(Whitespace) },
-        { ALT: () => this.CONSUME2(Newline) },
-      ]));
-      this.SUBRULE2(this.multiplicative);
+    this.MANY({
+      GATE: () => {
+        // Look ahead to find Plus or Minus, skipping whitespace
+        let i = 1;
+        while (i <= 5) {  // Look ahead up to 5 tokens
+          const la = this.LA(i);
+          if (!la || !la.tokenType) return false;
+          if (la.tokenType === Plus || la.tokenType === Minus) return true;
+          if (la.tokenType !== Whitespace && la.tokenType !== Newline) return false;
+          i++;
+        }
+        return false;
+      },
+      DEF: () => {
+        // Consume any whitespace before operator
+        this.MANY1(() => {
+          this.OR1([
+            { ALT: () => this.CONSUME1(Whitespace) },
+            { ALT: () => this.CONSUME1(Newline) },
+          ]);
+        });
+        this.OR2([
+          { ALT: () => this.CONSUME(Plus) },
+          { ALT: () => this.CONSUME(Minus) },
+        ]);
+        // Consume any whitespace after operator
+        this.MANY2(() => {
+          this.OR3([
+            { ALT: () => this.CONSUME2(Whitespace) },
+            { ALT: () => this.CONSUME2(Newline) },
+          ]);
+        });
+        this.SUBRULE1(this.multiplicative);
+      }
     });
   });
 
   multiplicative = this.RULE('multiplicative', () => {
     this.SUBRULE(this.unary);
-    this.MANY1(() => {
-      // Allow whitespace before operator
-      this.MANY2(() => this.OR1([
-        { ALT: () => this.CONSUME1(Whitespace) },
-        { ALT: () => this.CONSUME1(Newline) },
-      ]));
-      this.OR2([
-        { ALT: () => this.CONSUME(Star) },
-        { ALT: () => this.CONSUME(Slash) },
-        { ALT: () => this.CONSUME(Mod) },
-      ]);
-      // Allow whitespace after operator
-      this.MANY3(() => this.OR3([
-        { ALT: () => this.CONSUME2(Whitespace) },
-        { ALT: () => this.CONSUME2(Newline) },
-      ]));
-      this.SUBRULE2(this.unary);
+    this.MANY({
+      GATE: () => {
+        // Look ahead to find Star, Slash, or Mod, skipping whitespace
+        let i = 1;
+        while (i <= 5) {
+          const la = this.LA(i);
+          if (!la || !la.tokenType) return false;
+          if (la.tokenType === Star || la.tokenType === Slash || la.tokenType === Mod) return true;
+          if (la.tokenType !== Whitespace && la.tokenType !== Newline) return false;
+          i++;
+        }
+        return false;
+      },
+      DEF: () => {
+        this.MANY1(() => {
+          this.OR1([
+            { ALT: () => this.CONSUME1(Whitespace) },
+            { ALT: () => this.CONSUME1(Newline) },
+          ]);
+        });
+        this.OR2([
+          { ALT: () => this.CONSUME(Star) },
+          { ALT: () => this.CONSUME(Slash) },
+          { ALT: () => this.CONSUME(Mod) },
+        ]);
+        this.MANY2(() => {
+          this.OR3([
+            { ALT: () => this.CONSUME2(Whitespace) },
+            { ALT: () => this.CONSUME2(Newline) },
+          ]);
+        });
+        this.SUBRULE1(this.unary);
+      }
     });
   });
 
