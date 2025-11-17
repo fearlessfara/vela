@@ -113,10 +113,14 @@ function extractPrefixPostfix(segments: Segment[]): Segment[] {
     if (isDirective) {
       // Check if there's content before this directive on the same line
       // This is used later to determine if postfix should be gobbled
-      // A directive is on a directive-only line if previous segment is empty/newline or start of template
+      // A directive is NOT on a directive-only line if there's content before it on the same line
+      // If previous segment ends with newline, the directive is on a new line
       const prevInResult = result[result.length - 1];
       const hasContentBefore = prevInResult &&
-                              (prevInResult.type !== 'Text' || !prevInResult.value.match(/^[ \t]*\r?\n?$/));
+                              prevInResult.type !== 'Text' ||
+                              (prevInResult && prevInResult.type === 'Text' &&
+                               !prevInResult.value.match(/\r?\n$/) &&
+                               prevInResult.value.length > 0);
       if (hasContentBefore) {
         (segment as any).hasContentBefore = true;
       }
