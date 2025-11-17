@@ -196,8 +196,8 @@ export interface ArrayLiteral extends BaseNode {
 // Range literals [1..3]
 export interface RangeLiteral extends BaseNode {
   type: 'RangeLiteral';
-  start: number;
-  end: number;
+  start: Expression;
+  end: Expression;
 }
 
 

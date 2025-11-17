@@ -372,6 +372,19 @@ function textToAst(text: CstNode): Text {
       const escapedBackslashes = doubleEscapes.replace(/\\\\/g, '\\');
       return escapedBackslashes + directive;
     }
+
+    // Handle escaped references: \$price -> $price, \\$price -> \$price, etc.
+    // Pattern: (\\\\)*\$...
+    const escapedRefMatch = image.match(/^((?:\\\\)*)\\(\$!?[a-zA-Z_$][a-zA-Z0-9_$]*|\$\{[^}]+\})/);
+    if (escapedRefMatch && escapedRefMatch[1] !== undefined && escapedRefMatch[2] !== undefined) {
+      const doubleEscapes = escapedRefMatch[1];
+      const reference = escapedRefMatch[2];
+      // For each \\ pair, output one \
+      // Then output the reference without the escape backslash
+      const escapedBackslashes = doubleEscapes.replace(/\\\\/g, '\\');
+      return escapedBackslashes + reference;
+    }
+
     return image;
   }).join('');
   return {
@@ -665,7 +678,8 @@ function macroInvocationToAst(macroInvocation: CstNode): any {
   return {
     type: 'MacroInvocation',
     name: name,
-    arguments: macroInvocation.children.arguments?.map((arg: any) => expressionToAst(arg)) || [],
+    // Arguments are parsed as primary expressions (literals, variables, etc.)
+    arguments: macroInvocation.children.arguments?.map((arg: any) => primaryToAst(arg)) || [],
     location: getLocation(macroInvocation),
   };
 }
@@ -901,19 +915,19 @@ function objectLiteralToAst(obj: CstNode): ObjectLiteral {
 }
 
 function arrayLiteralToAst(arr: CstNode): ArrayLiteral | RangeLiteral {
-  // Check if this is a range literal [1..3]
+  // Check if this is a range literal [1..3] or [$start..$end]
   if (arr.children.start && arr.children.rangeOperator && arr.children.end) {
-    const start = parseInt((arr.children.start[0] as any).image);
-    const end = parseInt((arr.children.end[0] as any).image);
-    
+    const startExpr = primaryToAst(arr.children.start[0] as CstNode);
+    const endExpr = primaryToAst(arr.children.end[0] as CstNode);
+
     return {
       type: 'RangeLiteral',
-      start,
-      end,
+      start: startExpr,
+      end: endExpr,
       location: getLocation(arr),
     };
   }
-  
+
   // Regular array literal
   const elements = arr.children.expression?.map(expr => expressionToAst(expr as CstNode)) || [];
 
@@ -968,9 +982,19 @@ function logicalAndToAst(logicalAnd: CstNode): Expression {
 function equalityToAst(equality: CstNode): Expression {
   const relationals = equality.children.relational || [];
   let expr: Expression = relationalToAst(relationals[0] as CstNode);
-  const ops = ([...(equality.children.Eq || []), ...(equality.children.Ne || [])] as any[])
+  const ops = ([
+    ...(equality.children.Eq || []),
+    ...(equality.children.Ne || []),
+    ...(equality.children.EqWord || []),
+    ...(equality.children.NeWord || []),
+  ] as any[])
     .sort((a, b) => (a.startOffset ?? 0) - (b.startOffset ?? 0))
-    .map(t => t.image as '==' | '!=') as Array<'==' | '!='>;
+    .map(t => {
+      // Map word-form operators to their symbol equivalents
+      if (t.image === 'eq') return '==';
+      if (t.image === 'ne') return '!=';
+      return t.image as '==' | '!=';
+    }) as Array<'==' | '!='>;
   for (let i = 0; i < ops.length; i++) {
     const operator = ops[i]! as BinaryOperator;
     expr = {
@@ -992,9 +1016,20 @@ function relationalToAst(relational: CstNode): Expression {
     ...(relational.children.Le || []),
     ...(relational.children.Gt || []),
     ...(relational.children.Ge || []),
+    ...(relational.children.LtWord || []),
+    ...(relational.children.LeWord || []),
+    ...(relational.children.GtWord || []),
+    ...(relational.children.GeWord || []),
   ] as any[])
     .sort((a, b) => (a.startOffset ?? 0) - (b.startOffset ?? 0))
-    .map(t => t.image as '<' | '<=' | '>' | '>=') as Array<'<' | '<=' | '>' | '>='>;
+    .map(t => {
+      // Map word-form operators to their symbol equivalents
+      if (t.image === 'lt') return '<';
+      if (t.image === 'le') return '<=';
+      if (t.image === 'gt') return '>';
+      if (t.image === 'ge') return '>=';
+      return t.image as '<' | '<=' | '>' | '>=';
+    }) as Array<'<' | '<=' | '>' | '>='>;
   for (let i = 0; i < ops.length; i++) {
     const operator = ops[i]! as BinaryOperator;
     expr = {
@@ -1055,11 +1090,24 @@ function unaryToAst(unary: CstNode): Expression {
     return primaryToAst(unary.children.primary[0] as CstNode);
   }
 
-  const operator = getUnaryOperator(unary);
+  // Get the operator directly from children
+  let operator: UnaryOperator;
+  if (unary.children.Not?.[0]) {
+    operator = '!';
+  } else if (unary.children.NotWord?.[0]) {
+    operator = '!';
+  } else if (unary.children.Plus?.[0]) {
+    operator = '+';
+  } else if (unary.children.Minus?.[0]) {
+    operator = '-';
+  } else {
+    throw new Error(`Invalid unary operation. Found children: ${Object.keys(unary.children || {}).join(', ')}`);
+  }
+
   const operand = unary.children.unary?.[0] as CstNode;
-  
+
   if (!operand) {
-    throw new Error('Invalid unary operation');
+    throw new Error('Invalid unary operation - no operand');
   }
 
   return {
@@ -1112,13 +1160,6 @@ function primaryBaseToAst(pb: CstNode): Expression {
   if (c.arrayLiteral) return arrayLiteralToAst(c.arrayLiteral[0] as CstNode);
   if (c.expression) return expressionToAst(c.expression[0] as CstNode);
   throw new Error('Invalid primaryBase');
-}
-
-function getUnaryOperator(node: CstNode): UnaryOperator {
-  if (node.children.Not?.[0]) return '!';
-  if (node.children.Plus?.[0]) return '+';
-  if (node.children.Minus?.[0]) return '-';
-  throw new Error('Invalid unary operator');
 }
 
 function getLocation(_node: CstNode | CstElement): SourceLocation {

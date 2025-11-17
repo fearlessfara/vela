@@ -35,6 +35,16 @@ import {
   Le,
   Gt,
   Ge,
+  // Word-form operators
+  EqWord,
+  NeWord,
+  GtWord,
+  GeWord,
+  LtWord,
+  LeWord,
+  AndWord,
+  OrWord,
+  NotWord,
   Question,
   Range,
   IfDirective,
@@ -137,6 +147,15 @@ export class VtlParser extends CstParser {
         ALT: () => this.SUBRULE(this.arrayLiteral),
       },
       {
+        // Segment-based template parsing (default for Velocity templates)
+        ALT: () => {
+          this.MANY(() => {
+            this.SUBRULE(this.segment);
+          });
+        },
+      },
+      {
+        // Bare expression parsing (for programmatic use)
         GATE: () => {
           const t = this.LA(1).tokenType;
           return t === DollarRef || t === QuietRef || t === InterpStart ||
@@ -144,13 +163,6 @@ export class VtlParser extends CstParser {
                  t === NullLiteral || t === Identifier;
         },
         ALT: () => this.SUBRULE(this.expression),
-      },
-      {
-        ALT: () => {
-          this.MANY(() => {
-            this.SUBRULE(this.segment);
-          });
-        },
       },
     ]);
   });
@@ -270,12 +282,25 @@ export class VtlParser extends CstParser {
   // #if directive
   ifDirective = this.RULE('ifDirective', () => {
     this.CONSUME(IfDirective, { LABEL: 'ifKeyword' });
-    // Optional whitespace between directive and opening parenthesis
-    this.MANY(() => this.CONSUME(Whitespace));
+    // Optional whitespace/newlines between directive and opening parenthesis
+    this.MANY(() => this.OR([
+      { ALT: () => this.CONSUME(Whitespace) },
+      { ALT: () => this.CONSUME(Newline) },
+    ]));
     this.CONSUME(LParen);
+    // Optional whitespace/newlines after opening parenthesis
+    this.MANY1(() => this.OR1([
+      { ALT: () => this.CONSUME1(Whitespace) },
+      { ALT: () => this.CONSUME1(Newline) },
+    ]));
     this.SUBRULE(this.expression, { LABEL: 'condition' });
+    // Optional whitespace/newlines before closing parenthesis
+    this.MANY2(() => this.OR2([
+      { ALT: () => this.CONSUME2(Whitespace) },
+      { ALT: () => this.CONSUME2(Newline) },
+    ]));
     this.CONSUME(RParen);
-    this.MANY1({
+    this.MANY3({
       GATE: () => {
         const t = this.LA(1).tokenType;
         return t !== ElseIfDirective && t !== ElseDirective && t !== EndDirective;
@@ -284,7 +309,7 @@ export class VtlParser extends CstParser {
         this.SUBRULE(this.segment, { LABEL: 'thenBody' });
       },
     });
-    this.MANY2(() => {
+    this.MANY4(() => {
       this.SUBRULE(this.elseIfDirective, { LABEL: 'elseIfBranches' });
     });
     this.OPTION1(() => {
@@ -292,7 +317,7 @@ export class VtlParser extends CstParser {
     });
     this.CONSUME(EndDirective, { LABEL: 'endKeyword' });
     // Capture optional whitespace after #end as postfix
-    this.OPTION2(() => this.CONSUME1(Whitespace, { LABEL: 'postfix' }));
+    this.OPTION2(() => this.CONSUME3(Whitespace, { LABEL: 'postfix' }));
   });
 
   // #elseif directive
@@ -475,23 +500,25 @@ export class VtlParser extends CstParser {
   });
 
   // Macro invocation: #macroName(arg1, arg2, ...)
+  // NOTE: Arguments can be comma-separated OR space-separated (Velocity supports both)
   macroInvocation = this.RULE('macroInvocation', () => {
     this.CONSUME(MacroInvocationStart, { LABEL: 'invocation' });
     this.CONSUME(LParen);
     this.MANY(() => this.CONSUME(Whitespace)); // Optional whitespace after (
     this.OPTION(() => {
-      this.SUBRULE(this.expression, { LABEL: 'arguments' });
+      // Use primary instead of expression to avoid ternary operator parsing issues
+      this.SUBRULE(this.primary, { LABEL: 'arguments' });
       this.MANY1(() => {
-        this.MANY2(() => this.CONSUME1(Whitespace)); // Optional whitespace before comma
-        this.CONSUME(Comma);
+        this.MANY2(() => this.CONSUME1(Whitespace)); // Whitespace acts as separator (comma is optional)
+        this.OPTION1(() => this.CONSUME(Comma)); // Optional comma
         this.MANY3(() => this.CONSUME2(Whitespace)); // Optional whitespace after comma
-        this.SUBRULE1(this.expression, { LABEL: 'arguments' });
+        this.SUBRULE1(this.primary, { LABEL: 'arguments' });
       });
       this.MANY4(() => this.CONSUME3(Whitespace)); // Optional whitespace before )
     });
     this.CONSUME(RParen);
     // Capture optional whitespace after invocation as postfix
-    this.OPTION1(() => this.CONSUME4(Whitespace, { LABEL: 'postfix' }));
+    this.OPTION2(() => this.CONSUME4(Whitespace, { LABEL: 'postfix' }));
   });
 
   // #evaluate directive
@@ -565,7 +592,7 @@ export class VtlParser extends CstParser {
   logicalOr = this.RULE('logicalOr', () => {
     this.SUBRULE(this.logicalAnd);
     this.MANY1({
-      // Only enter loop if there's an || operator (possibly after whitespace)
+      // Only enter loop if there's an || or 'or' operator (possibly after whitespace)
       GATE: () => {
         let i = 1;
         let la = this.LA(i);
@@ -574,8 +601,8 @@ export class VtlParser extends CstParser {
           i++;
           la = this.LA(i);
         }
-        // Check if we found ||
-        return la && la.tokenType === Or;
+        // Check if we found || or 'or'
+        return la && (la.tokenType === Or || la.tokenType === OrWord);
       },
       DEF: () => {
         // Allow whitespace before operator
@@ -583,9 +610,12 @@ export class VtlParser extends CstParser {
           { ALT: () => this.CONSUME1(Whitespace) },
           { ALT: () => this.CONSUME1(Newline) },
         ]));
-        this.CONSUME(Or);
+        this.OR2([
+          { ALT: () => this.CONSUME(Or) },
+          { ALT: () => this.CONSUME(OrWord) },
+        ]);
         // Allow whitespace after operator
-        this.MANY3(() => this.OR2([
+        this.MANY3(() => this.OR3([
           { ALT: () => this.CONSUME2(Whitespace) },
           { ALT: () => this.CONSUME2(Newline) },
         ]));
@@ -597,7 +627,7 @@ export class VtlParser extends CstParser {
   logicalAnd = this.RULE('logicalAnd', () => {
     this.SUBRULE(this.equality);
     this.MANY1({
-      // Only enter loop if there's an && operator (possibly after whitespace)
+      // Only enter loop if there's an && or 'and' operator (possibly after whitespace)
       GATE: () => {
         let i = 1;
         let la = this.LA(i);
@@ -606,8 +636,8 @@ export class VtlParser extends CstParser {
           i++;
           la = this.LA(i);
         }
-        // Check if we found &&
-        return la && la.tokenType === And;
+        // Check if we found && or 'and'
+        return la && (la.tokenType === And || la.tokenType === AndWord);
       },
       DEF: () => {
         // Allow whitespace before operator
@@ -615,9 +645,12 @@ export class VtlParser extends CstParser {
           { ALT: () => this.CONSUME1(Whitespace) },
           { ALT: () => this.CONSUME1(Newline) },
         ]));
-        this.CONSUME(And);
+        this.OR2([
+          { ALT: () => this.CONSUME(And) },
+          { ALT: () => this.CONSUME(AndWord) },
+        ]);
         // Allow whitespace after operator
-        this.MANY3(() => this.OR2([
+        this.MANY3(() => this.OR3([
           { ALT: () => this.CONSUME2(Whitespace) },
           { ALT: () => this.CONSUME2(Newline) },
         ]));
@@ -629,7 +662,7 @@ export class VtlParser extends CstParser {
   equality = this.RULE('equality', () => {
     this.SUBRULE(this.relational);
     this.MANY1({
-      // Only enter loop if there's an == or != operator (possibly after whitespace)
+      // Only enter loop if there's an == or != or 'eq' or 'ne' operator (possibly after whitespace)
       GATE: () => {
         let i = 1;
         let la = this.LA(i);
@@ -638,8 +671,8 @@ export class VtlParser extends CstParser {
           i++;
           la = this.LA(i);
         }
-        // Check if we found == or !=
-        return la && (la.tokenType === Eq || la.tokenType === Ne);
+        // Check if we found ==, !=, 'eq', or 'ne'
+        return la && (la.tokenType === Eq || la.tokenType === Ne || la.tokenType === EqWord || la.tokenType === NeWord);
       },
       DEF: () => {
         // Allow whitespace before operator
@@ -650,6 +683,8 @@ export class VtlParser extends CstParser {
         this.OR2([
           { ALT: () => this.CONSUME(Eq) },
           { ALT: () => this.CONSUME(Ne) },
+          { ALT: () => this.CONSUME(EqWord) },
+          { ALT: () => this.CONSUME(NeWord) },
         ]);
         // Allow whitespace after operator
         this.MANY3(() => this.OR3([
@@ -673,8 +708,9 @@ export class VtlParser extends CstParser {
           i++;
           la = this.LA(i);
         }
-        // Check if we found a <, <=, >, or >= operator
-        return la && (la.tokenType === Lt || la.tokenType === Le || la.tokenType === Gt || la.tokenType === Ge);
+        // Check if we found a <, <=, >, >=, 'lt', 'le', 'gt', or 'ge' operator
+        return la && (la.tokenType === Lt || la.tokenType === Le || la.tokenType === Gt || la.tokenType === Ge ||
+                     la.tokenType === LtWord || la.tokenType === LeWord || la.tokenType === GtWord || la.tokenType === GeWord);
       },
       DEF: () => {
         // Allow whitespace before operator
@@ -687,6 +723,10 @@ export class VtlParser extends CstParser {
           { ALT: () => this.CONSUME(Le) },
           { ALT: () => this.CONSUME(Gt) },
           { ALT: () => this.CONSUME(Ge) },
+          { ALT: () => this.CONSUME(LtWord) },
+          { ALT: () => this.CONSUME(LeWord) },
+          { ALT: () => this.CONSUME(GtWord) },
+          { ALT: () => this.CONSUME(GeWord) },
         ]);
         // Allow whitespace after operator
         this.MANY3(() => this.OR3([
@@ -776,9 +816,15 @@ export class VtlParser extends CstParser {
         ALT: () => {
           this.OR2([
             { ALT: () => this.CONSUME(Not) },
+            { ALT: () => this.CONSUME(NotWord) },
             { ALT: () => this.CONSUME(Plus) },
             { ALT: () => this.CONSUME(Minus) },
           ]);
+          // Consume optional whitespace after the operator
+          this.MANY(() => this.OR3([
+            { ALT: () => this.CONSUME(Whitespace) },
+            { ALT: () => this.CONSUME(Newline) },
+          ]));
           this.SUBRULE(this.unary);
         },
       },
@@ -895,14 +941,14 @@ export class VtlParser extends CstParser {
       this.OR2([
         {
           GATE: () => {
-            const la1 = this.LA(1);
+            // Check if token at position 2 is Range to distinguish [expr..expr] from [expr, expr]
             const la2 = this.LA(2);
-            return la1.tokenType === NumberLiteral && la2.tokenType === Range;
+            return la2.tokenType === Range;
           },
           ALT: () => {
-            this.CONSUME(NumberLiteral, { LABEL: 'start' });
+            this.SUBRULE(this.primary, { LABEL: 'start' });
             this.CONSUME(Range, { LABEL: 'rangeOperator' });
-            this.CONSUME1(NumberLiteral, { LABEL: 'end' });
+            this.SUBRULE1(this.primary, { LABEL: 'end' });
           },
         },
         {

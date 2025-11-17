@@ -32,6 +32,9 @@ import {
 export type EvaluationContext = Map<string, any> | Record<string, any>;
 export type SpaceGobblingMode = 'none' | 'bc' | 'lines' | 'structured';
 
+// Sentinel value for quiet references that evaluate to undefined
+const QUIET_UNDEFINED = Symbol('QUIET_UNDEFINED');
+
 export class VtlEvaluator {
   private scopeManager: ScopeManager;
   private stringBuilder: StringBuilder;
@@ -128,6 +131,23 @@ export class VtlEvaluator {
            expr.type === 'ArrayAccess';
   }
 
+  /**
+   * Check if an expression has a quiet variable reference at its root.
+   * For $!obj.property, this returns true because the root $!obj is quiet.
+   */
+  private hasQuietRoot(expr: any): boolean {
+    if (expr.type === 'VariableReference') {
+      return expr.quiet;
+    }
+    if (expr.type === 'MemberAccess' || expr.type === 'ArrayAccess') {
+      return this.hasQuietRoot(expr.object);
+    }
+    if (expr.type === 'FunctionCall') {
+      return this.hasQuietRoot(expr.callee);
+    }
+    return false;
+  }
+
   private evaluateInterpolation(interp: Interpolation): void {
     // Check if this is a valid interpolation expression
     // Java Velocity only evaluates variable references, property access, method calls, and array access
@@ -142,15 +162,25 @@ export class VtlEvaluator {
 
     const value = this.evaluateExpression(interp.expression);
 
+    // Handle quiet undefined - always output empty string
+    if (value === QUIET_UNDEFINED) {
+      return; // Output nothing
+    }
+
     // Handle null/undefined values:
-    // - undefined from missing variable:
-    //   - Braced ${missing}: output literally as ${missing}
-    //   - Unbraced $missing: output empty string
-    // - null from expression evaluation (e.g., $name.length on string, or $obj.missing):
-    //   - Both braced and unbraced: output literally
-    if (value === null) {
-      // Expression evaluated to null (e.g., property doesn't exist on primitive)
-      // Output literally for both braced and unbraced
+    // - If the expression has a quiet root ($!...): output nothing
+    // - Otherwise:
+    //   - undefined from missing variable: output literally
+    //   - null from expression evaluation: output literally
+    const hasQuiet = this.hasQuietRoot(interp.expression);
+
+    if (value === null || value === undefined) {
+      // If the root is quiet, output nothing
+      if (hasQuiet) {
+        return;
+      }
+
+      // Expression evaluated to null/undefined - output literally
       if (interp.braced) {
         this.stringBuilder.appendString('${');
         this.stringBuilder.appendString(this.expressionToString(interp.expression));
@@ -160,18 +190,6 @@ export class VtlEvaluator {
         this.stringBuilder.appendString(this.expressionToLiteralReference(interp.expression));
       }
       return;
-    }
-
-    if (value === undefined) {
-      // Variable doesn't exist
-      if (interp.braced) {
-        // Braced ${missing}: output literally as ${missing}
-        this.stringBuilder.appendString('${');
-        this.stringBuilder.appendString(this.expressionToString(interp.expression));
-        this.stringBuilder.appendString('}');
-        return;
-      }
-      // Unbraced $missing: output empty string (handled by appendInterpolatedValue)
     }
 
     this.appendInterpolatedValue(value);
@@ -613,11 +631,13 @@ export class VtlEvaluator {
       }
 
       if (ref.quiet) {
-        return '';
+        // Return sentinel value for quiet undefined references
+        // This allows member access chains like $!obj.missing.property to stay quiet
+        return QUIET_UNDEFINED;
       }
       // For non-quiet undefined variables, return undefined (not empty string)
       // This allows braced interpolations like ${missing} to detect and output literally
-      // While unbraced $missing will be handled in evaluateInterpolation to output empty
+      // While unbraced $missing will be handled in evaluateInterpolation to output literal
       return undefined;
     }
 
@@ -626,6 +646,11 @@ export class VtlEvaluator {
 
   private evaluateMemberAccess(member: MemberAccess): any {
     const object = this.evaluateExpression(member.object);
+
+    // Propagate quiet undefined through member access chains
+    if (object === QUIET_UNDEFINED) {
+      return QUIET_UNDEFINED;
+    }
 
     if (object === null || object === undefined) {
       return null;
@@ -706,70 +731,91 @@ export class VtlEvaluator {
   }
 
   private evaluateRangeLiteral(range: RangeLiteral): any {
+    const start = this.evaluateExpression(range.start);
+    const end = this.evaluateExpression(range.end);
     const result = [];
-    for (let i = range.start; i <= range.end; i++) {
+    for (let i = start; i <= end; i++) {
       result.push(i);
     }
     return result;
   }
 
   private evaluateBinaryOperation(op: BinaryOperation): any {
-    const left = this.evaluateExpression(op.left);
-    const right = this.evaluateExpression(op.right);
-    
+    let left = this.evaluateExpression(op.left);
+    let right = this.evaluateExpression(op.right);
+
+    // Unwrap float-wrapped values for comparisons
+    const unwrap = (val: any) => (val && typeof val === 'object' && '__float' in val) ? val.value : val;
+    const leftUnwrapped = unwrap(left);
+    const rightUnwrapped = unwrap(right);
+
     switch (op.operator) {
       case '+':
         // Java Velocity: + operator concatenates if either operand is a string
         // Otherwise, it does numeric addition (converting string numbers to numbers)
-        if (typeof left === 'string' || typeof right === 'string') {
-          return String(left) + String(right);
+        if (typeof leftUnwrapped === 'string' || typeof rightUnwrapped === 'string') {
+          return String(leftUnwrapped) + String(rightUnwrapped);
         }
         // Both are numbers (or numeric strings that weren't strings)
-        const leftNum = typeof left === 'string' && !isNaN(Number(left)) ? Number(left) : Number(left) || 0;
-        const rightNum = typeof right === 'string' && !isNaN(Number(right)) ? Number(right) : Number(right) || 0;
-        return leftNum + rightNum;
+        const leftNum = typeof leftUnwrapped === 'string' && !isNaN(Number(leftUnwrapped)) ? Number(leftUnwrapped) : Number(leftUnwrapped) || 0;
+        const rightNum = typeof rightUnwrapped === 'string' && !isNaN(Number(rightUnwrapped)) ? Number(rightUnwrapped) : Number(rightUnwrapped) || 0;
+        const sumResult = leftNum + rightNum;
+        // If either operand is a float, mark result as float for proper formatting
+        if (!Number.isInteger(leftNum) || !Number.isInteger(rightNum)) {
+          return { __float: true, value: sumResult };
+        }
+        return sumResult;
       case '-':
         // Convert string numbers to numbers for subtraction
-        const leftSub = typeof left === 'string' && !isNaN(Number(left)) ? Number(left) : left;
-        const rightSub = typeof right === 'string' && !isNaN(Number(right)) ? Number(right) : right;
-        return leftSub - rightSub;
+        const leftSub = typeof leftUnwrapped === 'string' && !isNaN(Number(leftUnwrapped)) ? Number(leftUnwrapped) : leftUnwrapped;
+        const rightSub = typeof rightUnwrapped === 'string' && !isNaN(Number(rightUnwrapped)) ? Number(rightUnwrapped) : rightUnwrapped;
+        const subResult = leftSub - rightSub;
+        if (!Number.isInteger(leftSub) || !Number.isInteger(rightSub)) {
+          return { __float: true, value: subResult };
+        }
+        return subResult;
       case '*':
         // Convert string numbers to numbers for multiplication
-        const leftMul = typeof left === 'string' && !isNaN(Number(left)) ? Number(left) : left;
-        const rightMul = typeof right === 'string' && !isNaN(Number(right)) ? Number(right) : right;
-        return leftMul * rightMul;
+        const leftMul = typeof leftUnwrapped === 'string' && !isNaN(Number(leftUnwrapped)) ? Number(leftUnwrapped) : leftUnwrapped;
+        const rightMul = typeof rightUnwrapped === 'string' && !isNaN(Number(rightUnwrapped)) ? Number(rightUnwrapped) : rightUnwrapped;
+        const mulResult = leftMul * rightMul;
+        if (!Number.isInteger(leftMul) || !Number.isInteger(rightMul)) {
+          return { __float: true, value: mulResult };
+        }
+        return mulResult;
       case '/':
         // Convert string numbers to numbers for division
-        const leftDiv = typeof left === 'string' && !isNaN(Number(left)) ? Number(left) : left;
-        const rightDiv = typeof right === 'string' && !isNaN(Number(right)) ? Number(right) : right;
+        const leftDiv = typeof leftUnwrapped === 'string' && !isNaN(Number(leftUnwrapped)) ? Number(leftUnwrapped) : leftUnwrapped;
+        const rightDiv = typeof rightUnwrapped === 'string' && !isNaN(Number(rightUnwrapped)) ? Number(rightUnwrapped) : rightUnwrapped;
         if (rightDiv === 0) return null; // Java Velocity returns null for division by zero
         // Java Velocity uses integer division when both operands are integers
-        const result = leftDiv / rightDiv;
+        const divResult = leftDiv / rightDiv;
         if (Number.isInteger(leftDiv) && Number.isInteger(rightDiv)) {
-          return Math.floor(result);
+          return Math.floor(divResult);
         }
-        return result;
+        // Float division - mark result as float
+        return { __float: true, value: divResult };
       case '%':
         // Convert string numbers to numbers for modulo
-        const leftMod = typeof left === 'string' && !isNaN(Number(left)) ? Number(left) : left;
-        const rightMod = typeof right === 'string' && !isNaN(Number(right)) ? Number(right) : right;
+        const leftMod = typeof leftUnwrapped === 'string' && !isNaN(Number(leftUnwrapped)) ? Number(leftUnwrapped) : leftUnwrapped;
+        const rightMod = typeof rightUnwrapped === 'string' && !isNaN(Number(rightUnwrapped)) ? Number(rightUnwrapped) : rightUnwrapped;
         return rightMod !== 0 ? leftMod % rightMod : null; // Java Velocity returns null for modulo by zero
       case '==':
-        return left == right;
+        return leftUnwrapped == rightUnwrapped;
       case '!=':
-        return left != right;
+        return leftUnwrapped != rightUnwrapped;
       case '<':
-        return left < right;
+        return leftUnwrapped < rightUnwrapped;
       case '<=':
-        return left <= right;
+        return leftUnwrapped <= rightUnwrapped;
       case '>':
-        return left > right;
+        return leftUnwrapped > rightUnwrapped;
       case '>=':
-        return left >= right;
+        return leftUnwrapped >= rightUnwrapped;
       case '&&':
-        return isTruthy(left) && isTruthy(right);
+        return isTruthy(leftUnwrapped) && isTruthy(rightUnwrapped);
       case '||':
-        return isTruthy(left) || isTruthy(right);
+        return isTruthy(leftUnwrapped) || isTruthy(rightUnwrapped);
       default:
         throw new Error(`Unknown binary operator: ${op.operator}`);
     }

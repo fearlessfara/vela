@@ -21,6 +21,7 @@
     "test:velocity": "npm run build:node && node dist/tools/compare-velocity/harness.js",
     "test:velocity:single": "npm run build:node && node dist/tools/compare-velocity/harness.js",
     "test:unit": "npm run build:node && node --experimental-vm-modules node_modules/.bin/jest",
+    "add-test": "npm run build:tools && node dist/tools/add-test.js",
     "dev": "tsc --watch",
     "clean": "rm -rf dist dist-browser"
   },
@@ -28,7 +29,7 @@
     "@rollup/plugin-node-resolve": "^16.0.1",
     "@rollup/plugin-typescript": "^12.1.4",
     "@types/jest": "^30.0.0",
-    "@types/node": "^22.0.0",
+    "@types/node": "^22.19.1",
     "jest": "^30.1.3",
     "rollup": "^4.50.2",
     "ts-jest": "^29.4.2",
