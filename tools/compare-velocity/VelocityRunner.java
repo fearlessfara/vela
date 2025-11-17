@@ -3,7 +3,7 @@ import org.apache.velocity.app.Velocity;
 import java.io.StringWriter;
 import java.util.Properties;
 import java.util.Map;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.ArrayList;
 import com.google.gson.Gson;
@@ -87,7 +87,7 @@ public class VelocityRunner {
             }
             return list;
         } else if (element.isJsonObject()) {
-            Map<String, Object> map = new HashMap<>();
+            Map<String, Object> map = new LinkedHashMap<>();
             for (Map.Entry<String, JsonElement> entry : element.getAsJsonObject().entrySet()) {
                 map.put(entry.getKey(), convertJsonElement(entry.getValue()));
             }
