@@ -741,62 +741,81 @@ export class VtlEvaluator {
   }
 
   private evaluateBinaryOperation(op: BinaryOperation): any {
-    const left = this.evaluateExpression(op.left);
-    const right = this.evaluateExpression(op.right);
-    
+    let left = this.evaluateExpression(op.left);
+    let right = this.evaluateExpression(op.right);
+
+    // Unwrap float-wrapped values for comparisons
+    const unwrap = (val: any) => (val && typeof val === 'object' && '__float' in val) ? val.value : val;
+    const leftUnwrapped = unwrap(left);
+    const rightUnwrapped = unwrap(right);
+
     switch (op.operator) {
       case '+':
         // Java Velocity: + operator concatenates if either operand is a string
         // Otherwise, it does numeric addition (converting string numbers to numbers)
-        if (typeof left === 'string' || typeof right === 'string') {
-          return String(left) + String(right);
+        if (typeof leftUnwrapped === 'string' || typeof rightUnwrapped === 'string') {
+          return String(leftUnwrapped) + String(rightUnwrapped);
         }
         // Both are numbers (or numeric strings that weren't strings)
-        const leftNum = typeof left === 'string' && !isNaN(Number(left)) ? Number(left) : Number(left) || 0;
-        const rightNum = typeof right === 'string' && !isNaN(Number(right)) ? Number(right) : Number(right) || 0;
-        return leftNum + rightNum;
+        const leftNum = typeof leftUnwrapped === 'string' && !isNaN(Number(leftUnwrapped)) ? Number(leftUnwrapped) : Number(leftUnwrapped) || 0;
+        const rightNum = typeof rightUnwrapped === 'string' && !isNaN(Number(rightUnwrapped)) ? Number(rightUnwrapped) : Number(rightUnwrapped) || 0;
+        const sumResult = leftNum + rightNum;
+        // If either operand is a float, mark result as float for proper formatting
+        if (!Number.isInteger(leftNum) || !Number.isInteger(rightNum)) {
+          return { __float: true, value: sumResult };
+        }
+        return sumResult;
       case '-':
         // Convert string numbers to numbers for subtraction
-        const leftSub = typeof left === 'string' && !isNaN(Number(left)) ? Number(left) : left;
-        const rightSub = typeof right === 'string' && !isNaN(Number(right)) ? Number(right) : right;
-        return leftSub - rightSub;
+        const leftSub = typeof leftUnwrapped === 'string' && !isNaN(Number(leftUnwrapped)) ? Number(leftUnwrapped) : leftUnwrapped;
+        const rightSub = typeof rightUnwrapped === 'string' && !isNaN(Number(rightUnwrapped)) ? Number(rightUnwrapped) : rightUnwrapped;
+        const subResult = leftSub - rightSub;
+        if (!Number.isInteger(leftSub) || !Number.isInteger(rightSub)) {
+          return { __float: true, value: subResult };
+        }
+        return subResult;
       case '*':
         // Convert string numbers to numbers for multiplication
-        const leftMul = typeof left === 'string' && !isNaN(Number(left)) ? Number(left) : left;
-        const rightMul = typeof right === 'string' && !isNaN(Number(right)) ? Number(right) : right;
-        return leftMul * rightMul;
+        const leftMul = typeof leftUnwrapped === 'string' && !isNaN(Number(leftUnwrapped)) ? Number(leftUnwrapped) : leftUnwrapped;
+        const rightMul = typeof rightUnwrapped === 'string' && !isNaN(Number(rightUnwrapped)) ? Number(rightUnwrapped) : rightUnwrapped;
+        const mulResult = leftMul * rightMul;
+        if (!Number.isInteger(leftMul) || !Number.isInteger(rightMul)) {
+          return { __float: true, value: mulResult };
+        }
+        return mulResult;
       case '/':
         // Convert string numbers to numbers for division
-        const leftDiv = typeof left === 'string' && !isNaN(Number(left)) ? Number(left) : left;
-        const rightDiv = typeof right === 'string' && !isNaN(Number(right)) ? Number(right) : right;
+        const leftDiv = typeof leftUnwrapped === 'string' && !isNaN(Number(leftUnwrapped)) ? Number(leftUnwrapped) : leftUnwrapped;
+        const rightDiv = typeof rightUnwrapped === 'string' && !isNaN(Number(rightUnwrapped)) ? Number(rightUnwrapped) : rightUnwrapped;
         if (rightDiv === 0) return null; // Java Velocity returns null for division by zero
         // Java Velocity uses integer division when both operands are integers
-        const result = leftDiv / rightDiv;
+        const divResult = leftDiv / rightDiv;
         if (Number.isInteger(leftDiv) && Number.isInteger(rightDiv)) {
-          return Math.floor(result);
+          return Math.floor(divResult);
         }
-        return result;
+        // Float division - mark result as float
+        return { __float: true, value: divResult };
       case '%':
         // Convert string numbers to numbers for modulo
-        const leftMod = typeof left === 'string' && !isNaN(Number(left)) ? Number(left) : left;
-        const rightMod = typeof right === 'string' && !isNaN(Number(right)) ? Number(right) : right;
+        const leftMod = typeof leftUnwrapped === 'string' && !isNaN(Number(leftUnwrapped)) ? Number(leftUnwrapped) : leftUnwrapped;
+        const rightMod = typeof rightUnwrapped === 'string' && !isNaN(Number(rightUnwrapped)) ? Number(rightUnwrapped) : rightUnwrapped;
         return rightMod !== 0 ? leftMod % rightMod : null; // Java Velocity returns null for modulo by zero
       case '==':
-        return left == right;
+        return leftUnwrapped == rightUnwrapped;
       case '!=':
-        return left != right;
+        return leftUnwrapped != rightUnwrapped;
       case '<':
-        return left < right;
+        return leftUnwrapped < rightUnwrapped;
       case '<=':
-        return left <= right;
+        return leftUnwrapped <= rightUnwrapped;
       case '>':
-        return left > right;
+        return leftUnwrapped > rightUnwrapped;
       case '>=':
-        return left >= right;
+        return leftUnwrapped >= rightUnwrapped;
       case '&&':
-        return isTruthy(left) && isTruthy(right);
+        return isTruthy(leftUnwrapped) && isTruthy(rightUnwrapped);
       case '||':
-        return isTruthy(left) || isTruthy(right);
+        return isTruthy(leftUnwrapped) || isTruthy(rightUnwrapped);
       default:
         throw new Error(`Unknown binary operator: ${op.operator}`);
     }

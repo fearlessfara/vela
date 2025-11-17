@@ -678,7 +678,8 @@ function macroInvocationToAst(macroInvocation: CstNode): any {
   return {
     type: 'MacroInvocation',
     name: name,
-    arguments: macroInvocation.children.arguments?.map((arg: any) => expressionToAst(arg)) || [],
+    // Arguments are parsed as primary expressions (literals, variables, etc.)
+    arguments: macroInvocation.children.arguments?.map((arg: any) => primaryToAst(arg)) || [],
     location: getLocation(macroInvocation),
   };
 }
