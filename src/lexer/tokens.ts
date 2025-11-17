@@ -211,6 +211,7 @@ function isInExpressionContext(text: string, offset: number): boolean {
   let bracketDepth = 0;
   let inString = false;
   let stringChar: string | null = null;
+  let seenDirectiveOrRefOnLine = false;
 
   // Scan backwards from current position
   for (let i = offset - 1; i >= 0; i--) {
@@ -230,6 +231,14 @@ function isInExpressionContext(text: string, offset: number): boolean {
 
     if (inString) continue;
 
+    // Track if we see # or $ on the current line
+    if (ch === '#' && (i === 0 || text[i - 1] !== '\\')) {
+      seenDirectiveOrRefOnLine = true;
+    }
+    if (ch === '$') {
+      seenDirectiveOrRefOnLine = true;
+    }
+
     // Track delimiter depth
     if (ch === ')') parenDepth++;
     else if (ch === '(') parenDepth--;
@@ -238,9 +247,27 @@ function isInExpressionContext(text: string, offset: number): boolean {
     else if (ch === ']') bracketDepth++;
     else if (ch === '[') bracketDepth--;
 
-    // If we find an unclosed delimiter, we're in expression context
-    if (parenDepth < 0 || braceDepth < 0 || bracketDepth < 0) {
+    // If we find an unclosed delimiter, check if we're in an actual expression
+    // Only count it if we've seen a directive (#) or reference ($) on this line
+    if ((parenDepth < 0 || braceDepth < 0 || bracketDepth < 0) && seenDirectiveOrRefOnLine) {
       return true;
+    }
+
+    // If we hit a newline
+    if (ch === '\n' || ch === '\r') {
+      // If we didn't see any # or $ on this line, we're in template text
+      // (any parentheses or delimiters were just literal characters, not expressions)
+      if (!seenDirectiveOrRefOnLine) {
+        return false;
+      }
+      // Reset for previous line
+      seenDirectiveOrRefOnLine = false;
+      // Also reset delimiter counters - delimiters don't span lines in template text
+      if (parenDepth > 0 || braceDepth > 0 || bracketDepth > 0) {
+        parenDepth = 0;
+        braceDepth = 0;
+        bracketDepth = 0;
+      }
     }
   }
 

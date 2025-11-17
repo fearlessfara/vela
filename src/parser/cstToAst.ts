@@ -349,6 +349,9 @@ function segmentToAst(segment: CstElement): Segment {
     if (node.children.directive) {
       return directiveToAst(node.children.directive[0] as CstNode);
     }
+    if (node.children.escapedDirective) {
+      return escapedDirectiveToAst(node.children.escapedDirective[0] as CstNode);
+    }
   }
   throw new Error('Invalid segment type');
 }
@@ -375,6 +378,37 @@ function textToAst(text: CstNode): Text {
     type: 'Text',
     value,
     location: getLocation(text),
+  };
+}
+
+function escapedDirectiveToAst(escapedDirective: CstNode): Text {
+  // Extract the EscapedDirective token
+  const token = ((escapedDirective.children as any).EscapedDirective || [])[0] as { image: string };
+  if (!token) {
+    throw new Error('Expected EscapedDirective token');
+  }
+
+  // Handle escaped directives: \#end -> #end, \\#end -> \#end, etc.
+  // Pattern: (\\\\)*\#directive
+  const image = token.image;
+  const match = image.match(/^((?:\\\\)*)\\(#(?:if|elseif|else|end|set|foreach|break|stop|macro|evaluate|parse|include)\b.*)/);
+
+  if (!match) {
+    throw new Error(`Invalid escaped directive: ${image}`);
+  }
+
+  const doubleEscapes = match[1] || '';
+  const directive = match[2] || '';
+
+  // For each \\ pair, output one \
+  // Then output the directive without the escape backslash
+  const escapedBackslashes = doubleEscapes.replace(/\\\\/g, '\\');
+  const value = escapedBackslashes + directive;
+
+  return {
+    type: 'Text',
+    value,
+    location: getLocation(escapedDirective),
   };
 }
 

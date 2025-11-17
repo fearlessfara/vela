@@ -50,6 +50,7 @@ import {
   ParseDirective,
   IncludeDirective,
   EndDirective,
+  EscapedDirective,
   AnyTextFragment,
   Newline,
   Whitespace,
@@ -154,7 +155,7 @@ export class VtlParser extends CstParser {
     ]);
   });
 
-  // Segment: text, interpolation, or directive
+  // Segment: text, interpolation, directive, or escaped directive
   segment = this.RULE('segment', () => {
     this.OR([
       {
@@ -166,13 +167,14 @@ export class VtlParser extends CstParser {
             t === SetDirective || t === ForEachDirective || t === BreakDirective ||
             t === StopDirective || t === MacroDirective || t === MacroInvocationStart ||
             t === EndDirective || t === EvaluateDirective || t === ParseDirective ||
-            t === IncludeDirective
+            t === IncludeDirective || t === EscapedDirective
           );
         },
         ALT: () => this.SUBRULE(this.text),
       },
       { ALT: () => this.SUBRULE(this.interpolation) },
       { ALT: () => this.SUBRULE(this.directive) },
+      { ALT: () => this.SUBRULE(this.escapedDirective) },
     ]);
   });
 
@@ -182,6 +184,12 @@ export class VtlParser extends CstParser {
     this.AT_LEAST_ONE(() => {
       this.CONSUME(AnyTextFragment);
     });
+  });
+
+  // Escaped directive: \#directive should be treated as literal text
+  // The backslash will be stripped and the directive text retained
+  escapedDirective = this.RULE('escapedDirective', () => {
+    this.CONSUME(EscapedDirective);
   });
 
   // Interpolation:
