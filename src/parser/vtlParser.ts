@@ -50,6 +50,7 @@ import {
   ParseDirective,
   IncludeDirective,
   EndDirective,
+  EscapedDirective,
   AnyTextFragment,
   Newline,
   Whitespace,
@@ -154,7 +155,7 @@ export class VtlParser extends CstParser {
     ]);
   });
 
-  // Segment: text, interpolation, or directive
+  // Segment: text, interpolation, directive, or escaped directive
   segment = this.RULE('segment', () => {
     this.OR([
       {
@@ -164,14 +165,16 @@ export class VtlParser extends CstParser {
             t === DollarRef || t === QuietRef || t === InterpStart ||
             t === IfDirective || t === ElseIfDirective || t === ElseDirective ||
             t === SetDirective || t === ForEachDirective || t === BreakDirective ||
-            t === StopDirective || t === MacroDirective || t === EndDirective ||
-            t === EvaluateDirective || t === ParseDirective || t === IncludeDirective
+            t === StopDirective || t === MacroDirective || t === MacroInvocationStart ||
+            t === EndDirective || t === EvaluateDirective || t === ParseDirective ||
+            t === IncludeDirective || t === EscapedDirective
           );
         },
         ALT: () => this.SUBRULE(this.text),
       },
       { ALT: () => this.SUBRULE(this.interpolation) },
       { ALT: () => this.SUBRULE(this.directive) },
+      { ALT: () => this.SUBRULE(this.escapedDirective) },
     ]);
   });
 
@@ -181,6 +184,12 @@ export class VtlParser extends CstParser {
     this.AT_LEAST_ONE(() => {
       this.CONSUME(AnyTextFragment);
     });
+  });
+
+  // Escaped directive: \#directive should be treated as literal text
+  // The backslash will be stripped and the directive text retained
+  escapedDirective = this.RULE('escapedDirective', () => {
+    this.CONSUME(EscapedDirective);
   });
 
   // Interpolation:
@@ -349,8 +358,8 @@ export class VtlParser extends CstParser {
       { ALT: () => this.CONSUME4(Newline) },
     ]));
     this.CONSUME(RParen);
-    // Capture optional whitespace after directive as postfix
-    this.OPTION1(() => this.CONSUME5(Whitespace, { LABEL: 'postfix' }));
+    // Don't capture whitespace-only as postfix - let extractPrefixPostfix handle it from Text segments
+    // Postfix should only include newlines, not standalone whitespace
   });
 
   // #foreach directive
@@ -441,20 +450,17 @@ export class VtlParser extends CstParser {
   // #macro directive (stub)
   macroDirective = this.RULE('macroDirective', () => {
     this.CONSUME(MacroDirective, { LABEL: 'macroKeyword' });
-    this.CONSUME1(Identifier, { LABEL: 'name' });
-    this.OPTION1(() => {
-      this.CONSUME(LParen);
-      this.OPTION2(() => {
-        // Macro parameters are $param1, $param2, etc.
-        this.CONSUME(DollarRef, { LABEL: 'parameters' });
-        this.MANY1(() => {
-          this.CONSUME(Comma);
-          this.CONSUME1(DollarRef, { LABEL: 'parameters' });
-        });
-      });
-      this.CONSUME(RParen);
+    this.CONSUME(LParen);
+    this.CONSUME(Identifier, { LABEL: 'name' });
+    // Optional whitespace after macro name and between parameters
+    this.MANY1(() => this.CONSUME(Whitespace));
+    this.MANY2(() => {
+      // Macro parameters are $param1, $param2, etc.
+      this.CONSUME(DollarRef, { LABEL: 'parameters' });
+      this.MANY3(() => this.CONSUME1(Whitespace));
     });
-    this.MANY2({
+    this.CONSUME(RParen);
+    this.MANY4({
       GATE: () => {
         const t = this.LA(1).tokenType;
         return t !== EndDirective;
@@ -472,16 +478,20 @@ export class VtlParser extends CstParser {
   macroInvocation = this.RULE('macroInvocation', () => {
     this.CONSUME(MacroInvocationStart, { LABEL: 'invocation' });
     this.CONSUME(LParen);
+    this.MANY(() => this.CONSUME(Whitespace)); // Optional whitespace after (
     this.OPTION(() => {
       this.SUBRULE(this.expression, { LABEL: 'arguments' });
-      this.MANY(() => {
+      this.MANY1(() => {
+        this.MANY2(() => this.CONSUME1(Whitespace)); // Optional whitespace before comma
         this.CONSUME(Comma);
+        this.MANY3(() => this.CONSUME2(Whitespace)); // Optional whitespace after comma
         this.SUBRULE1(this.expression, { LABEL: 'arguments' });
       });
+      this.MANY4(() => this.CONSUME3(Whitespace)); // Optional whitespace before )
     });
     this.CONSUME(RParen);
     // Capture optional whitespace after invocation as postfix
-    this.OPTION1(() => this.CONSUME(Whitespace, { LABEL: 'postfix' }));
+    this.OPTION1(() => this.CONSUME4(Whitespace, { LABEL: 'postfix' }));
   });
 
   // #evaluate directive

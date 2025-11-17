@@ -114,12 +114,11 @@ function extractPrefixPostfix(segments: Segment[]): Segment[] {
       // This must be done BEFORE prefix extraction, using the previous segment's ORIGINAL value
       // A directive is NOT on a directive-only line if there's content before it on the same line
       // If previous segment ends with newline, the directive is on a new line
-      const prevInResult = result[result.length - 1];
-      const hasContentBefore = prevInResult &&
-                              prevInResult.type !== 'Text' ||
-                              (prevInResult && prevInResult.type === 'Text' &&
-                               !prevInResult.value.match(/\r?\n$/) &&
-                               prevInResult.value.length > 0);
+      const hasContentBefore = prevSegment && (
+                              prevSegment.type !== 'Text' ||
+                              (prevSegment.type === 'Text' &&
+                               !prevSegment.value.match(/\r?\n$/) &&
+                               prevSegment.value.length > 0));
       if (hasContentBefore) {
         (segment as any).hasContentBefore = true;
       }
@@ -350,6 +349,9 @@ function segmentToAst(segment: CstElement): Segment {
     if (node.children.directive) {
       return directiveToAst(node.children.directive[0] as CstNode);
     }
+    if (node.children.escapedDirective) {
+      return escapedDirectiveToAst(node.children.escapedDirective[0] as CstNode);
+    }
   }
   throw new Error('Invalid segment type');
 }
@@ -376,6 +378,37 @@ function textToAst(text: CstNode): Text {
     type: 'Text',
     value,
     location: getLocation(text),
+  };
+}
+
+function escapedDirectiveToAst(escapedDirective: CstNode): Text {
+  // Extract the EscapedDirective token
+  const token = ((escapedDirective.children as any).EscapedDirective || [])[0] as { image: string };
+  if (!token) {
+    throw new Error('Expected EscapedDirective token');
+  }
+
+  // Handle escaped directives: \#end -> #end, \\#end -> \#end, etc.
+  // Pattern: (\\\\)*\#directive
+  const image = token.image;
+  const match = image.match(/^((?:\\\\)*)\\(#(?:if|elseif|else|end|set|foreach|break|stop|macro|evaluate|parse|include)\b.*)/);
+
+  if (!match) {
+    throw new Error(`Invalid escaped directive: ${image}`);
+  }
+
+  const doubleEscapes = match[1] || '';
+  const directive = match[2] || '';
+
+  // For each \\ pair, output one \
+  // Then output the directive without the escape backslash
+  const escapedBackslashes = doubleEscapes.replace(/\\\\/g, '\\');
+  const value = escapedBackslashes + directive;
+
+  return {
+    type: 'Text',
+    value,
+    location: getLocation(escapedDirective),
   };
 }
 
