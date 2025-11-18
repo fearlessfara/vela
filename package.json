@@ -29,7 +29,7 @@
     "build:umd": "rollup -c",
     "build:tools": "tsc -p tools/tsconfig.json",
     "test": "npm run test:unit && npm run test:velocity",
-    "test:unit": "npm run build:node && node dist/tests/unit/utility-registration.test.js",
+    "test:unit": "npm run build:node && node dist/tests/unit/variables-and-interpolation.test.js && node dist/tests/unit/directives.test.js && node dist/tests/unit/expressions-and-operators.test.js && node dist/tests/unit/utility-registration.test.js",
     "test:velocity": "npm run build:node && node dist/tools/compare-velocity/harness.js",
     "test:velocity:single": "npm run build:node && node dist/tools/compare-velocity/harness.js",
     "add-test": "npm run build:tools && node dist/tools/add-test.js",
