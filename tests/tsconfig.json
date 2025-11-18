@@ -6,6 +6,6 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false
   },
-  "include": ["unit/**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": ["velocity-compatibility.test.ts", "unit/**/*.ts"],
+  "exclude": ["node_modules", "utility-registration.test.ts"]
 }
