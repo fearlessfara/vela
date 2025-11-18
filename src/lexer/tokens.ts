@@ -16,12 +16,16 @@ export const StringLiteral = createToken({
     exec: (text: string, startOffset: number) => {
       const len = text.length;
       if (startOffset >= len) return null;
-      
+
       const startChar = text.charCodeAt(startOffset);
       const isDouble = startChar === 34; // "
       const isSingle = startChar === 39; // '
-      
+
       if (!isDouble && !isSingle) return null;
+
+      // Only match string literals in expression contexts (inside directives, ${...}, etc.)
+      // In template text, quotes are just literal characters
+      if (!isInExpressionContext(text, startOffset)) return null;
       
       const quoteChar = isDouble ? '"' : "'";
       let i = startOffset + 1;
@@ -222,9 +226,13 @@ function isInExpressionContext(text: string, offset: number): boolean {
   let stringChar: string | null = null;
   let seenDirectiveOrRefOnLine = false;
 
+  const DEBUG = false; // Set to true for debugging
+  if (DEBUG) console.log(`\n=== Checking context at offset ${offset}, char: '${text[offset]}'`);
+
   // Scan backwards from current position
   for (let i = offset - 1; i >= 0; i--) {
     const ch = text[i];
+    if (DEBUG) console.log(`  i=${i}, ch='${ch}', paren=${parenDepth}, seen=${seenDirectiveOrRefOnLine}`);
 
     // Handle strings - operators inside strings are not expression operators
     if (ch === '"' || ch === "'") {
@@ -264,19 +272,10 @@ function isInExpressionContext(text: string, offset: number): boolean {
 
     // If we hit a newline
     if (ch === '\n' || ch === '\r') {
-      // If we didn't see any # or $ on this line, we're in template text
-      // (any parentheses or delimiters were just literal characters, not expressions)
-      if (!seenDirectiveOrRefOnLine) {
-        return false;
-      }
-      // Reset for previous line
+      // Reset the flag for the previous line
+      // But DON'T return false here - we need to continue scanning to check if we're
+      // in a multiline expression (unclosed delimiter from previous line)
       seenDirectiveOrRefOnLine = false;
-      // Also reset delimiter counters - delimiters don't span lines in template text
-      if (parenDepth > 0 || braceDepth > 0 || bracketDepth > 0) {
-        parenDepth = 0;
-        braceDepth = 0;
-        bracketDepth = 0;
-      }
     }
   }
 
@@ -868,6 +867,8 @@ export const TemplateText = createToken({
         // These are all special characters in Velocity and should be their own tokens
         // Note: = is no longer in this list because it's now context-aware and only
         // matches in expression contexts. In template text, = is just a regular character.
+        // Note: Quotes (' ") are NOT in this list because they're just literal characters
+        // in template text. StringLiteral token will match them only in expression contexts.
         if (ch === 35 || ch === 36 ||
             ch === 91 || ch === 93 || ch === 40 || ch === 41 || ch === 123 || ch === 125) {
           break;

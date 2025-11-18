@@ -148,6 +148,135 @@ await engine.evaluateReader(
 );
 ```
 
+### Registering Utility Methods and Objects
+
+Similar to Java Velocity's `context.put()` functionality, you can register utility classes, objects, and helper methods in the context for use in templates. This is useful for providing common utilities like formatting, calculations, or custom business logic.
+
+#### Static Utility Classes
+
+```typescript
+import { VelocityEngine } from '@fearlessfara/velocits';
+
+// Define a utility class with static methods
+class MathUtil {
+  static add(a: number, b: number): number {
+    return a + b;
+  }
+
+  static max(...numbers: number[]): number {
+    return Math.max(...numbers);
+  }
+}
+
+const engine = new VelocityEngine();
+
+// Register the class in the context (like Java's context.put("MathUtil", MathUtil.class))
+const context = {
+  MathUtil: MathUtil,
+  x: 5,
+  y: 10
+};
+
+const template = 'Result: $MathUtil.add($x, $y)';
+const output = engine.render(template, context);
+// Output: "Result: 15"
+```
+
+#### Instance-Based Utility Objects
+
+```typescript
+// Define a utility class
+class StringUtil {
+  capitalize(str: string): string {
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  }
+
+  truncate(str: string, maxLen: number): string {
+    return str.length > maxLen ? str.substring(0, maxLen) + '...' : str;
+  }
+}
+
+// Create an instance and register it
+const util = new StringUtil();
+const context = {
+  util: util,
+  name: 'velocity'
+};
+
+const template = 'Upper: $util.capitalize($name)';
+const output = engine.render(template, context);
+// Output: "Upper: Velocity"
+```
+
+#### Custom Utility Objects with Inline Functions
+
+```typescript
+// Register an object with utility methods
+const context = {
+  util: {
+    formatCurrency: (amount: number) => '$' + amount.toFixed(2),
+    join: (arr: any[], separator: string) => arr.join(separator),
+    isEven: (n: number) => n % 2 === 0
+  },
+  price: 42.50,
+  items: ['apple', 'banana', 'cherry']
+};
+
+const template = `
+Price: $util.formatCurrency($price)
+Items: $util.join($items, ", ")
+`;
+
+const output = engine.render(template, context);
+// Output:
+// Price: $42.50
+// Items: apple, banana, cherry
+```
+
+#### Built-in JavaScript Objects
+
+```typescript
+// You can use JavaScript's built-in objects like Math
+const context = {
+  Math: Math,
+  number: 2.7
+};
+
+const template = 'Ceiling: $Math.ceil($number)';
+const output = engine.render(template, context);
+// Output: "Ceiling: 3"
+```
+
+#### Using Utilities in Control Structures
+
+Utility methods work seamlessly with VTL directives like `#if` and `#foreach`:
+
+```typescript
+const context = {
+  util: {
+    isEven: (n: number) => n % 2 === 0,
+    square: (n: number) => n * n
+  },
+  numbers: [1, 2, 3, 4, 5]
+};
+
+const template = `
+#foreach($n in $numbers)
+$n: #if($util.isEven($n))even, square = $util.square($n)#else odd#end
+#end
+`;
+
+const output = engine.render(template, context);
+// Output:
+// 1:  odd
+// 2: even, square = 4
+// 3:  odd
+// 4: even, square = 16
+// 5:  odd
+```
+
+For more examples, see [src/examples/utilityRegistration.ts](src/examples/utilityRegistration.ts).
+
 ## Supported Features
 
 ### Template Language

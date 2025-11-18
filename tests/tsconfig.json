@@ -1,0 +1,11 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "..",
+    "outDir": "../dist",
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
+  },
+  "include": ["velocity-compatibility.test.ts", "unit/**/*.ts"],
+  "exclude": ["node_modules", "utility-registration.test.ts"]
+}
