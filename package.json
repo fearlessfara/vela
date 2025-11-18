@@ -73,11 +73,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/fearlessfara/vela.git"
+    "url": "https://github.com/fearlessfara/velocits.git"
   },
-  "homepage": "https://github.com/fearlessfara/vela#readme",
+  "homepage": "https://github.com/fearlessfara/velocits#readme",
   "bugs": {
-    "url": "https://github.com/fearlessfara/vela/issues"
+    "url": "https://github.com/fearlessfara/velocits/issues"
   },
   "license": "MIT",
   "publishConfig": {
