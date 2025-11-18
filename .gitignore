@@ -106,3 +106,8 @@ dist
 # Temporary folders
 tmp/
 temp/
+# Compiled output in src (should only be in dist/)
+src/**/*.js
+src/**/*.d.ts
+src/*.js
+src/*.d.ts
