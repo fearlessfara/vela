@@ -7,6 +7,7 @@ import { cstToAst } from '../parser/cstToAst.js';
 import {
   Template,
   Segment,
+  Block,
   Text,
   Interpolation,
   IfDirective,
@@ -82,6 +83,9 @@ export class VtlEvaluator {
       case 'Interpolation':
         this.evaluateInterpolation(segment);
         break;
+      case 'Block':
+        this.evaluateBlock(segment);
+        break;
       case 'IfDirective':
         this.evaluateIfDirective(segment);
         break;
@@ -117,6 +121,43 @@ export class VtlEvaluator {
 
   private evaluateText(text: Text): void {
     this.stringBuilder.appendString(text.value);
+  }
+
+  /**
+   * Evaluate a Block node.
+   * Blocks carry indentation (prefix/postfix) that is conditionally written based on space gobbling mode.
+   * Reference: Java ASTBlock.java:133-157
+   */
+  private evaluateBlock(block: Block): void {
+    // Check if block contains any actual output content (not just directives)
+    // Output content includes: Text with non-whitespace, VariableReference, Interpolation
+    // Directives don't count as they only control flow
+    const hasTextContent = block.segments.some(seg =>
+      (seg.type === 'Text' && (seg as Text).value.trim().length > 0) ||
+      seg.type === 'VariableReference' ||
+      seg.type === 'Interpolation'
+    );
+
+    // Write block prefix (indentation) only if block has output content
+    // If block only contains directives, skip the prefix (the nested directive's block will have the correct prefix)
+    if (block.prefix && hasTextContent) {
+      this.stringBuilder.appendString(block.prefix);
+    }
+
+    // Render block contents
+    for (const segment of block.segments) {
+      this.evaluateSegment(segment);
+      if (this.shouldStop || this.shouldBreak) {
+        break;
+      }
+    }
+
+    // Write block postfix based on space gobbling mode
+    // Reference: Java ASTBlock.java:149-152
+    // Postfix is typically indentation before #end - gobble it in LINES mode
+    if (block.postfix && this.spaceGobbling === 'none') {
+      this.stringBuilder.appendString(block.postfix);
+    }
   }
 
   /**
@@ -302,17 +343,13 @@ export class VtlEvaluator {
     const condition = this.evaluateExpression(ifDirective.condition);
 
     if (isTruthy(condition)) {
-      for (const segment of ifDirective.thenBody) {
-        this.evaluateSegment(segment);
-      }
+      this.evaluateBlock(ifDirective.thenBody);
     } else {
       // Check else-if branches
       let matched = false;
       for (const elseIf of ifDirective.elseIfBranches) {
         if (isTruthy(this.evaluateExpression(elseIf.condition))) {
-          for (const segment of elseIf.body) {
-            this.evaluateSegment(segment);
-          }
+          this.evaluateBlock(elseIf.body);
           matched = true;
           break;
         }
@@ -320,9 +357,7 @@ export class VtlEvaluator {
 
       // Check else branch
       if (!matched && ifDirective.elseBody) {
-        for (const segment of ifDirective.elseBody) {
-          this.evaluateSegment(segment);
-        }
+        this.evaluateBlock(ifDirective.elseBody);
       }
     }
 
@@ -355,10 +390,8 @@ export class VtlEvaluator {
 
     if (!isIterable(iterable)) {
       // If not iterable and there's an else clause, execute it
-      if (forEachDirective.elseBody && forEachDirective.elseBody.length > 0) {
-        for (const segment of forEachDirective.elseBody) {
-          this.evaluateSegment(segment);
-        }
+      if (forEachDirective.elseBody) {
+        this.evaluateBlock(forEachDirective.elseBody);
       }
       // Write postfix after directive
       this.writePostfix(forEachDirective);
@@ -370,10 +403,8 @@ export class VtlEvaluator {
     const totalItems = items.length;
 
     // If empty and there's an else clause, execute it
-    if (totalItems === 0 && forEachDirective.elseBody && forEachDirective.elseBody.length > 0) {
-      for (const segment of forEachDirective.elseBody) {
-        this.evaluateSegment(segment);
-      }
+    if (totalItems === 0 && forEachDirective.elseBody) {
+      this.evaluateBlock(forEachDirective.elseBody);
       // Write postfix after directive
       this.writePostfix(forEachDirective);
       return;
@@ -409,13 +440,7 @@ export class VtlEvaluator {
         this.scopeManager.setVariable(forEachDirective.variable, item);
         this.scopeManager.setVariable('foreach', foreachObject);
 
-        for (const segment of forEachDirective.body) {
-          this.evaluateSegment(segment);
-          // Check if #break or #stop was executed - stop processing segments immediately
-          if (this.shouldBreak || this.shouldStop) {
-            break;
-          }
-        }
+        this.evaluateBlock(forEachDirective.body);
       }
     } finally {
       this.scopeManager.popScope();
@@ -491,10 +516,7 @@ export class VtlEvaluator {
     }
 
     // Execute the macro body
-    for (const bodySegment of macro.body) {
-      if (this.shouldBreak || this.shouldStop) break;
-      this.evaluateSegment(bodySegment);
-    }
+    this.evaluateBlock(macro.body);
 
     // Pop the macro scope
     this.scopeManager.popScope();

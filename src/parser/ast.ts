@@ -28,7 +28,17 @@ export interface Template extends BaseNode {
   segments: Segment[];
 }
 
-export type Segment = Text | Interpolation | VariableReference | Directive;
+export type Segment = Text | Interpolation | VariableReference | Directive | Block;
+
+// Block: Wraps directive bodies (matching Java's ASTBlock)
+// Blocks carry their own prefix/postfix for indentation/whitespace
+// This is separate from directive's prefix/postfix which is for the directive line itself
+export interface Block extends BaseNode {
+  type: 'Block';
+  segments: Segment[];
+  // prefix: indentation before block content (inherited from BaseNode)
+  // postfix: trailing whitespace after block content (inherited from BaseNode)
+}
 
 // Text content
 // Note: Text nodes don't use prefix/postfix - they represent literal content
@@ -50,15 +60,15 @@ export interface Interpolation extends BaseNode {
 export interface IfDirective extends BaseNode {
   type: 'IfDirective';
   condition: Expression;
-  thenBody: Segment[];
+  thenBody: Block;
   elseIfBranches: ElseIfBranch[];
-  elseBody?: Segment[];
+  elseBody?: Block;
 }
 
 export interface ElseIfBranch extends BaseNode {
   type: 'ElseIfBranch';
   condition: Expression;
-  body: Segment[];
+  body: Block;
 }
 
 export interface SetDirective extends BaseNode {
@@ -71,8 +81,8 @@ export interface ForEachDirective extends BaseNode {
   type: 'ForEachDirective';
   variable: string;
   iterable: Expression;
-  body: Segment[];
-  elseBody?: Segment[];
+  body: Block;
+  elseBody?: Block;
 }
 
 export interface BreakDirective extends BaseNode {
@@ -87,7 +97,7 @@ export interface MacroDirective extends BaseNode {
   type: 'MacroDirective';
   name: string;
   parameters: string[];
-  body: Segment[];
+  body: Block;
 }
 
 export interface MacroInvocation extends BaseNode {

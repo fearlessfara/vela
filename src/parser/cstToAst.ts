@@ -4,6 +4,7 @@ import { CstNode, CstElement } from 'chevrotain';
 import {
   Template,
   Segment,
+  Block,
   Text,
   Interpolation,
   IfDirective,
@@ -95,6 +96,86 @@ export function cstToAst(cst: CstNode, spaceGobbling: SpaceGobblingMode = 'lines
  *
  * Reference: Java ASTDirective.java:62-63, ASTIfStatement.java:46-47
  */
+/**
+ * Extract prefix/postfix for a Block node.
+ * Recursively processes the segments inside the block.
+ * Also extracts the Block's own prefix from leading whitespace in the first segment.
+ */
+function extractPrefixPostfixFromBlock(block: Block): Block {
+  // Recursively process the segments inside the block
+  let processedSegments = extractPrefixPostfix(block.segments);
+  let blockPrefix = block.prefix;
+  let blockPostfix = block.postfix;
+
+  // Extract Block's own prefix from first segment if it's newline + whitespace before content
+  // This handles indentation before block content when there's no nested directive
+  // Only extract if spaces are NOT followed by another newline (blank line with spaces)
+  if (processedSegments.length > 0 && processedSegments[0] && processedSegments[0].type === 'Text') {
+    const firstText = processedSegments[0] as Text;
+    // Match newline followed by spaces/tabs, but NOT if followed by another newline (blank line)
+    // Use negative lookahead to avoid extracting blank lines with trailing spaces
+    const indentMatch = firstText.value.match(/^(\r?\n)([ \t]+)(?!\r?\n)/);
+    if (indentMatch && indentMatch[1] && indentMatch[2]) {
+      // Extract the indentation as Block prefix
+      blockPrefix = indentMatch[2];
+      // Remove the indentation from the Text, keeping only the newline
+      const remainingText = firstText.value.substring(indentMatch[0].length);
+      if (remainingText.length > 0) {
+        processedSegments = [
+          { ...firstText, value: indentMatch[1] + remainingText } as Text,
+          ...processedSegments.slice(1)
+        ];
+      } else {
+        // If only newline + whitespace, keep just the newline
+        processedSegments = [
+          { ...firstText, value: indentMatch[1] } as Text,
+          ...processedSegments.slice(1)
+        ];
+      }
+    }
+  }
+
+  // Extract Block's postfix from last segment if it ends with whitespace
+  // This handles indentation before #end (which is on a directive-only line and should be gobbled)
+  const lastIdx = processedSegments.length - 1;
+  if (lastIdx >= 0 && processedSegments[lastIdx] && processedSegments[lastIdx].type === 'Text') {
+    const lastText = processedSegments[lastIdx] as Text;
+
+    // First try: content + newline + spaces/tabs (e.g., "inner\n  ")
+    let trailingIndentMatch = lastText.value.match(/^(.*\r?\n)([ \t]+)$/s);
+    if (trailingIndentMatch && trailingIndentMatch[1] && trailingIndentMatch[2]) {
+      blockPostfix = trailingIndentMatch[2];
+      processedSegments = [
+        ...processedSegments.slice(0, lastIdx),
+        { ...lastText, value: trailingIndentMatch[1] } as Text
+      ];
+    } else {
+      // Second try: just spaces/tabs (e.g., "  ") - whitespace-only text at end of block
+      const whitespaceOnlyMatch = lastText.value.match(/^[ \t]+$/);
+      if (whitespaceOnlyMatch) {
+        blockPostfix = lastText.value;
+        // Remove this text segment entirely
+        processedSegments = processedSegments.slice(0, lastIdx);
+      }
+    }
+  }
+
+  const result: Block = {
+    type: 'Block',
+    segments: processedSegments,
+  };
+  if (block.location) {
+    result.location = block.location;
+  }
+  if (blockPrefix) {
+    result.prefix = blockPrefix;
+  }
+  if (blockPostfix) {
+    result.postfix = blockPostfix;
+  }
+  return result;
+}
+
 function extractPrefixPostfix(segments: Segment[]): Segment[] {
   const result: Segment[] = [];
 
@@ -102,28 +183,30 @@ function extractPrefixPostfix(segments: Segment[]): Segment[] {
     let segment = segments[i];
     if (!segment) continue; // Safety check
 
-    // RECURSIVELY process directive bodies FIRST
+    // RECURSIVELY process directive bodies and blocks FIRST
     if (segment.type === 'IfDirective') {
       segment = {
         ...segment,
-        thenBody: extractPrefixPostfix(segment.thenBody),
+        thenBody: extractPrefixPostfixFromBlock(segment.thenBody),
         elseIfBranches: segment.elseIfBranches.map(branch => ({
           ...branch,
-          body: extractPrefixPostfix(branch.body),
+          body: extractPrefixPostfixFromBlock(branch.body),
         })),
-        elseBody: segment.elseBody ? extractPrefixPostfix(segment.elseBody) : undefined,
+        elseBody: segment.elseBody ? extractPrefixPostfixFromBlock(segment.elseBody) : undefined,
       } as IfDirective;
     } else if (segment.type === 'ForEachDirective') {
       segment = {
         ...segment,
-        body: extractPrefixPostfix(segment.body),
-        elseBody: segment.elseBody ? extractPrefixPostfix(segment.elseBody) : undefined,
+        body: extractPrefixPostfixFromBlock(segment.body),
+        elseBody: segment.elseBody ? extractPrefixPostfixFromBlock(segment.elseBody) : undefined,
       } as ForEachDirective;
     } else if (segment.type === 'MacroDirective') {
       segment = {
         ...segment,
-        body: extractPrefixPostfix(segment.body),
+        body: extractPrefixPostfixFromBlock(segment.body),
       } as MacroDirective;
+    } else if (segment.type === 'Block') {
+      segment = extractPrefixPostfixFromBlock(segment as Block);
     }
 
     const prevSegment = i > 0 ? segments[i - 1] : null;
@@ -136,13 +219,15 @@ function extractPrefixPostfix(segments: Segment[]): Segment[] {
     if (isDirective) {
       // Check if there's content before this directive on the same line
       // This must be done BEFORE prefix extraction, using the previous segment's ORIGINAL value
-      // A directive is NOT on a directive-only line if there's content before it on the same line
-      // If previous segment ends with newline, the directive is on a new line
+      // A directive is on a directive-only line if the previous Text:
+      //   - Is empty, OR
+      //   - Ends with newline (possibly followed by spaces/tabs for indentation)
+      // If text ends with "\n" or "\n    " etc., the directive is on a new line
       const hasContentBefore = prevSegment && (
                               prevSegment.type !== 'Text' ||
                               (prevSegment.type === 'Text' &&
-                               !prevSegment.value.match(/\r?\n$/) &&
-                               prevSegment.value.length > 0));
+                               prevSegment.value.length > 0 &&
+                               !prevSegment.value.match(/(\r?\n[ \t]*)$/)));
       if (hasContentBefore) {
         (segment as any).hasContentBefore = true;
       }
@@ -150,24 +235,35 @@ function extractPrefixPostfix(segments: Segment[]): Segment[] {
       // Extract prefix from previous Text segment if it ends with whitespace
       // Skip for MacroDirective - preserve blank lines before macro definitions
       const isMacroDirective = segment.type === 'MacroDirective';
-      if (!isMacroDirective && prevSegment && prevSegment.type === 'Text') {
+
+      // Check if this directive has a Block body (where prefix should go to Block instead of directive)
+      const hasBlockBody = segment.type === 'IfDirective' ||
+                           segment.type === 'ForEachDirective' ||
+                           segment.type === 'MacroDirective';
+
+      if (!isMacroDirective && !hasBlockBody && prevSegment && prevSegment.type === 'Text') {
         const text = prevSegment.value;
-        // Extract prefix based on text content:
-        // 1. If text is whitespace-only (spaces/tabs OR newline + optional spaces/tabs): extract all as prefix
-        // 2. If text has content: only extract indentation (spaces/tabs) after last newline, not the newline itself
-        // The newline stays with content to preserve line structure (e.g., "Numbers:\n" before #foreach)
-        const whitespaceOnlyMatch = text.match(/^([ \t]*\r?\n[ \t]*|[ \t]+)$/);
-        if (whitespaceOnlyMatch) {
-          // Text is whitespace-only - extract it all as prefix
-          (segment as any).prefix = text;
-          result.pop();
-        } else if (text.match(/\r?\n$/)) {
-          // Text ends with newline but has content before it
-          // Extract only indentation after the newline, keep newline with content
-          const indentMatch = text.match(/\r?\n([ \t]+)$/);
-          if (indentMatch && indentMatch[1]) {
-            (segment as any).prefix = indentMatch[1];
-            (prevSegment as Text).value = text.slice(0, -indentMatch[1].length);
+        // Extract prefix for non-Block directives (SetDirective, etc.)
+        // For Block-body directives, the Block extracts its own prefix in extractPrefixPostfixFromBlock
+
+        // Match newline followed by spaces/tabs
+        const newlineIndentMatch = text.match(/^(\r?\n)([ \t]+)$/);
+        if (newlineIndentMatch && newlineIndentMatch[1] && newlineIndentMatch[2]) {
+          (segment as any).prefix = newlineIndentMatch[2];
+          (prevSegment as Text).value = newlineIndentMatch[1];
+        } else {
+          // Match pure spaces/tabs (no newlines)
+          const pureWhitespaceMatch = text.match(/^[ \t]+$/);
+          if (pureWhitespaceMatch) {
+            (segment as any).prefix = text;
+            result.pop();
+          } else {
+            // Text has content - check if it ends with newline + indentation
+            const trailingIndentMatch = text.match(/^(.+\r?\n)([ \t]+)$/s);
+            if (trailingIndentMatch && trailingIndentMatch[1] && trailingIndentMatch[2]) {
+              (segment as any).prefix = trailingIndentMatch[2];
+              (prevSegment as Text).value = trailingIndentMatch[1];
+            }
           }
         }
       }
@@ -205,6 +301,18 @@ function extractPrefixPostfix(segments: Segment[]): Segment[] {
 }
 
 /**
+ * Apply space gobbling to a Block node
+ */
+function applySpaceGobblingToBlock(block: Block, mode: SpaceGobblingMode): Block {
+  const processedSegments = applySpaceGobbling(block.segments, mode);
+  const strippedSegments = stripLeadingNewline(processedSegments);
+  return {
+    ...block,
+    segments: strippedSegments,
+  };
+}
+
+/**
  * Apply space gobbling rules recursively based on mode
  * Modes:
  * - none: No space gobbling at all
@@ -222,29 +330,29 @@ function applySpaceGobbling(segments: Segment[], mode: SpaceGobblingMode): Segme
     if (segment.type === 'IfDirective') {
       const processed: IfDirective = {
         ...segment,
-        thenBody: stripLeadingNewline(applySpaceGobbling(segment.thenBody, mode)), // Recursive!
+        thenBody: applySpaceGobblingToBlock(segment.thenBody, mode), // Recursive!
         elseIfBranches: segment.elseIfBranches.map(branch => ({
           ...branch,
-          body: stripLeadingNewline(applySpaceGobbling(branch.body, mode)), // Recursive!
+          body: applySpaceGobblingToBlock(branch.body, mode), // Recursive!
         })),
       };
       if (segment.elseBody) {
-        processed.elseBody = stripLeadingNewline(applySpaceGobbling(segment.elseBody, mode)); // Recursive!
+        processed.elseBody = applySpaceGobblingToBlock(segment.elseBody, mode); // Recursive!
       }
       return processed;
     } else if (segment.type === 'ForEachDirective') {
       const processed: ForEachDirective = {
         ...segment,
-        body: stripLeadingNewline(applySpaceGobbling(segment.body, mode)), // Recursive!
+        body: applySpaceGobblingToBlock(segment.body, mode), // Recursive!
       };
       if (segment.elseBody) {
-        processed.elseBody = stripLeadingNewline(applySpaceGobbling(segment.elseBody, mode)); // Recursive!
+        processed.elseBody = applySpaceGobblingToBlock(segment.elseBody, mode); // Recursive!
       }
       return processed;
     } else if (segment.type === 'MacroDirective') {
       return {
         ...segment,
-        body: stripLeadingNewline(applySpaceGobbling(segment.body, mode)), // Recursive!
+        body: applySpaceGobblingToBlock(segment.body, mode), // Recursive!
       } as MacroDirective;
     }
     return segment;
@@ -594,15 +702,28 @@ function directiveToAst(directive: CstNode): Segment {
   throw new Error('Invalid directive type');
 }
 
+/**
+ * Helper function to create a Block node from an array of segments.
+ * Blocks wrap directive bodies and carry indentation information (prefix/postfix).
+ * This matches Java Velocity's ASTBlock architecture.
+ */
+function createBlock(segments: Segment[], location: SourceLocation | undefined): Block {
+  const block: Block = {
+    type: 'Block',
+    segments: segments,
+  };
+  if (location) {
+    block.location = location;
+  }
+  return block;
+}
+
 function ifDirectiveToAst(ifDirective: CstNode): IfDirective {
   const elseIfBranches: ElseIfBranch[] = [];
-  const thenBody: Segment[] = [];
-  let elseBody: Segment[] | undefined;
 
-  // Process then body
-  if (ifDirective.children.thenBody) {
-    thenBody.push(...ifDirective.children.thenBody.map(segmentToAst));
-  }
+  // Process then body as a Block
+  const thenBodySegments: Segment[] = ifDirective.children.thenBody?.map(segmentToAst) || [];
+  const thenBody = createBlock(thenBodySegments, getLocation(ifDirective));
 
   // Process else-if branches
   if (ifDirective.children.elseIfBranches) {
@@ -611,29 +732,37 @@ function ifDirectiveToAst(ifDirective: CstNode): IfDirective {
     }
   }
 
-  // Process else body
+  // Process else body as a Block
+  let elseBody: Block | undefined;
   if (ifDirective.children.elseBranch) {
     const elseBranch = ifDirective.children.elseBranch[0] as CstNode;
     if (elseBranch.children.body) {
-      elseBody = elseBranch.children.body.map(segmentToAst);
+      const elseBodySegments = elseBranch.children.body.map(segmentToAst);
+      elseBody = createBlock(elseBodySegments, getLocation(elseBranch));
     }
   }
 
-  return {
+  const result: IfDirective = {
     type: 'IfDirective',
     condition: expressionToAst(ifDirective.children.condition![0] as CstNode),
     thenBody,
     elseIfBranches,
-    elseBody: elseBody || [],
     location: getLocation(ifDirective),
   };
+  if (elseBody) {
+    result.elseBody = elseBody;
+  }
+  return result;
 }
 
 function elseIfBranchToAst(elseIf: CstNode): ElseIfBranch {
+  const bodySegments = elseIf.children.body?.map(segmentToAst) || [];
+  const body = createBlock(bodySegments, getLocation(elseIf));
+
   return {
     type: 'ElseIfBranch',
     condition: expressionToAst(elseIf.children.condition![0] as CstNode),
-    body: elseIf.children.body?.map(segmentToAst) || [],
+    body,
     location: getLocation(elseIf),
   };
 }
@@ -653,18 +782,25 @@ function setDirectiveToAst(setDirective: CstNode): SetDirective {
 function forEachDirectiveToAst(forEachDirective: CstNode): ForEachDirective {
   const raw = (forEachDirective.children.variable![0] as any).image as string;
   const name = raw.startsWith('$!') ? raw.slice(2) : raw.startsWith('$') ? raw.slice(1) : raw;
+
+  // Create body Block
+  const bodySegments = forEachDirective.children.body?.map(segmentToAst) || [];
+  const body = createBlock(bodySegments, getLocation(forEachDirective));
+
   const result: ForEachDirective = {
     type: 'ForEachDirective',
     variable: name,
     iterable: expressionToAst(forEachDirective.children.iterable![0] as CstNode),
-    body: forEachDirective.children.body?.map(segmentToAst) || [],
+    body,
     location: getLocation(forEachDirective),
   };
-  
+
+  // Create elseBody Block if present
   if (forEachDirective.children.elseBody && forEachDirective.children.elseBody.length > 0) {
     const elseBodyNode = forEachDirective.children.elseBody[0] as CstNode;
     if (elseBodyNode.children.elseBodySegment && elseBodyNode.children.elseBodySegment.length > 0) {
-      result.elseBody = elseBodyNode.children.elseBodySegment.map(segmentToAst);
+      const elseBodySegments = elseBodyNode.children.elseBodySegment.map(segmentToAst);
+      result.elseBody = createBlock(elseBodySegments, getLocation(elseBodyNode));
     }
   }
 
@@ -686,11 +822,15 @@ function stopDirectiveToAst(stopDirective: CstNode): StopDirective {
 }
 
 function macroDirectiveToAst(macroDirective: CstNode): MacroDirective {
+  // Create body Block
+  const bodySegments = macroDirective.children.body?.map(segmentToAst) || [];
+  const body = createBlock(bodySegments, getLocation(macroDirective));
+
   return {
     type: 'MacroDirective',
     name: (macroDirective.children.name![0] as any).image,
     parameters: macroDirective.children.parameters?.map((p: any) => p.image) || [],
-    body: macroDirective.children.body?.map(segmentToAst) || [],
+    body,
     location: getLocation(macroDirective),
   };
 }
