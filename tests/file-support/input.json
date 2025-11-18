@@ -1,0 +1,6 @@
+{
+  "name": "World",
+  "showDetails": true,
+  "details": "This is a test template loaded from a file",
+  "items": ["apple", "banana", "cherry"]
+}
