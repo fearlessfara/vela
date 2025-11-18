@@ -1,43 +1,48 @@
-# Vela
+# Velocits
 
-Vela is a pure Apache Velocity Template Language (VTL) engine implemented in TypeScript. It aims for 1:1 compatibility with the Java reference implementation, using Chevrotain for parsing and a clean runtime evaluator.
+A TypeScript implementation of the Apache Velocity Template Language (VTL) with 1:1 Java compatibility. Built for both Node.js and browser environments using modern TypeScript best practices.
 
 ## Features
 
-- Chevrotain-driven lexer and parser with Velocity-compatible grammar
-- Pure VTL evaluation: directives (#set, #if, #foreach, #break, #stop), expressions, variable references
-- Simple API: pass template string and context map, get rendered output
-- Test harness for comparing TypeScript output with Java reference implementation
+- **Full VTL Support**: Directives (`#set`, `#if`, `#foreach`, `#break`, `#stop`), expressions, and variable references
+- **Java-Compatible**: 1:1 compatibility with Apache Velocity, tested against the Java reference implementation
+- **Universal**: Works in Node.js and browsers (UMD, ESM)
+- **Type-Safe**: Written in TypeScript with strict type checking
+- **Zero Dependencies**: Only runtime dependency is Chevrotain for parsing
 
 ## Installation
 
 ```bash
-# Clone the repository and install dependencies
-npm install
-
-# Initialize git submodule for Apache Velocity reference
-git submodule update --init
-
-# Compile the library and supporting tools
-npm run build
+npm install @fearlessfara/velocits
 ```
 
 ## Usage
 
-### Basic Example
+### Node.js / ESM
 
 ```typescript
-import { VelocityEngine } from '@fearlessfara/vela';
+import { VelocityEngine } from '@fearlessfara/velocits';
 
 const engine = new VelocityEngine();
 const output = engine.render('Hello, $name!', { name: 'World' });
 console.log(output); // "Hello, World!"
 ```
 
+### Browser (UMD)
+
+```html
+<script src="https://unpkg.com/@fearlessfara/velocits"></script>
+<script>
+  const engine = new Velocits.VelocityEngine();
+  const output = engine.render('Hello, $name!', { name: 'World' });
+  console.log(output); // "Hello, World!"
+</script>
+```
+
 ### Advanced Example
 
 ```typescript
-import { VelocityEngine } from '@fearlessfara/vela';
+import { VelocityEngine } from '@fearlessfara/velocits';
 
 const engine = new VelocityEngine();
 const template = `
@@ -55,40 +60,53 @@ console.log(output);
 //   - cherry
 ```
 
-## Testing
+## Supported Features
 
-The project includes a test harness that compares TypeScript output with the Java reference implementation:
+- **Variables**: `$variable`, `$!silent`, `${formal}`
+- **Directives**:
+  - `#set($var = value)` - Variable assignment
+  - `#if/#elseif/#else/#end` - Conditional logic
+  - `#foreach($item in $list)/#end` - Iteration
+  - `#break` - Break from loops
+  - `#stop` - Stop template rendering
+- **Expressions**: Literals, member access, method calls, arrays, maps, operators
+- **Type Coercion**: Follows Apache Velocity semantics for truthiness and type conversion
+- **Scoping**: Proper variable scoping with foreach loop variables
+
+## Development
 
 ```bash
-# Run all velocity tests
-npm run test:velocity
+# Install dependencies
+npm install
 
-# Run a specific test case
-npm run test:velocity:single <test-name>
+# Initialize git submodule for Apache Velocity reference
+git submodule update --init
 
-# Run unit tests
-npm run test:unit
+# Build the library
+npm run build
+
+# Run comparison tests against Java implementation
+npm test
+
+# Development mode (watch)
+npm run dev
 ```
 
-### Test Structure
+## Testing
+
+This library uses a comprehensive test harness that compares TypeScript output against the Apache Velocity Java reference implementation to ensure 100% compatibility.
+
+```bash
+# Run all comparison tests
+npm test
+
+# Run a specific test
+npm run test:velocity:single <test-name>
+```
 
 Test cases are located in `tests/velocity/<test-name>/`:
-- `template.vtl` - Velocity template to render
-- `input.json` - Context/variables as JSON object
-
-The test harness runs both Java and TypeScript engines and compares outputs byte-for-byte.
-
-## Apache Velocity Compatibility
-
-This implementation targets 1:1 compatibility with the Apache Velocity Java reference implementation. The test harness uses Java as the source of truth and ensures TypeScript output matches exactly.
-
-### Supported Features
-
-- Text segments and interpolations (`$ref`, `$!ref`, `${expr}`)
-- Directives: `#set`, `#if/#elseif/#else`, `#foreach`, `#break`, `#stop`
-- Expressions: literals, member access, function calls, arrays, maps, operators
-- Variable scoping and `#foreach` loop variables
-- Truthiness and type coercion per Velocity semantics
+- `template.vtl` - Velocity template
+- `input.json` - Context variables
 
 ## Project Structure
 
@@ -106,15 +124,22 @@ vendor/
   velocity-engine/   - Apache Velocity Java reference (git submodule)
 ```
 
+## TypeScript Configuration
+
+This library is built with strict TypeScript settings for maximum type safety:
+
+- `strict: true`
+- `noImplicitAny: true`
+- `noImplicitReturns: true`
+- `noUnusedLocals: true`
+- `noUnusedParameters: true`
+- `exactOptionalPropertyTypes: true`
+- `noUncheckedIndexedAccess: true`
+
 ## Contributing
 
-1. Fork or clone the repository and create topic branches off `main`.
-2. Run `npm run build` followed by `npm run test` to ensure changes pass all checks.
-3. Add test cases in `tests/velocity/` for new features.
-4. Submit a pull request that references any related issues.
-
-Contributions that improve compatibility with the Java reference implementation are particularly welcome.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-[Add license information here]
+MIT

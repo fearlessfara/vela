@@ -4,9 +4,9 @@ import { nodeResolve } from '@rollup/plugin-node-resolve';
 export default {
   input: 'src/browser.ts',
   output: {
-    file: 'dist-browser/vela.umd.js',
+    file: 'dist-browser/velocits.umd.js',
     format: 'umd',
-    name: 'Vela',
+    name: 'Velocits',
     sourcemap: true
   },
   plugins: [
