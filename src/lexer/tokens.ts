@@ -226,9 +226,13 @@ function isInExpressionContext(text: string, offset: number): boolean {
   let stringChar: string | null = null;
   let seenDirectiveOrRefOnLine = false;
 
+  const DEBUG = false; // Set to true for debugging
+  if (DEBUG) console.log(`\n=== Checking context at offset ${offset}, char: '${text[offset]}'`);
+
   // Scan backwards from current position
   for (let i = offset - 1; i >= 0; i--) {
     const ch = text[i];
+    if (DEBUG) console.log(`  i=${i}, ch='${ch}', paren=${parenDepth}, seen=${seenDirectiveOrRefOnLine}`);
 
     // Handle strings - operators inside strings are not expression operators
     if (ch === '"' || ch === "'") {
@@ -268,19 +272,10 @@ function isInExpressionContext(text: string, offset: number): boolean {
 
     // If we hit a newline
     if (ch === '\n' || ch === '\r') {
-      // If we didn't see any # or $ on this line, we're in template text
-      // (any parentheses or delimiters were just literal characters, not expressions)
-      if (!seenDirectiveOrRefOnLine) {
-        return false;
-      }
-      // Reset for previous line
+      // Reset the flag for the previous line
+      // But DON'T return false here - we need to continue scanning to check if we're
+      // in a multiline expression (unclosed delimiter from previous line)
       seenDirectiveOrRefOnLine = false;
-      // Also reset delimiter counters - delimiters don't span lines in template text
-      if (parenDepth > 0 || braceDepth > 0 || bracketDepth > 0) {
-        parenDepth = 0;
-        braceDepth = 0;
-        bracketDepth = 0;
-      }
     }
   }
 
