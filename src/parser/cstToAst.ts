@@ -98,14 +98,39 @@ export function cstToAst(cst: CstNode, spaceGobbling: SpaceGobblingMode = 'lines
  */
 /**
  * Extract prefix/postfix for a Block node.
- * Recursively processes the segments inside the block, but does NOT extract prefix from
- * adjacent Text segments (that's done at the top level by extractPrefixPostfix).
- * This ensures that indentation is relative, not absolute.
+ * Recursively processes the segments inside the block.
+ * Also extracts the Block's own prefix from leading whitespace in the first segment.
  */
 function extractPrefixPostfixFromBlock(block: Block): Block {
   // Recursively process the segments inside the block
-  // Pass skipPrefixExtraction=true to avoid extracting absolute indentation
-  const processedSegments = extractPrefixPostfixInternal(block.segments, true);
+  let processedSegments = extractPrefixPostfix(block.segments);
+  let blockPrefix = block.prefix;
+
+  // Extract Block's own prefix from first segment if it's newline + whitespace
+  // This handles indentation before block content when there's no nested directive
+  if (processedSegments.length > 0 && processedSegments[0] && processedSegments[0].type === 'Text') {
+    const firstText = processedSegments[0] as Text;
+    // Match newline followed by spaces/tabs at the start
+    const indentMatch = firstText.value.match(/^(\r?\n)([ \t]+)/);
+    if (indentMatch && indentMatch[1] && indentMatch[2]) {
+      // Extract the indentation as Block prefix
+      blockPrefix = indentMatch[2];
+      // Remove the indentation from the Text, keeping only the newline
+      const remainingText = firstText.value.substring(indentMatch[0].length);
+      if (remainingText.length > 0) {
+        processedSegments = [
+          { ...firstText, value: indentMatch[1] + remainingText } as Text,
+          ...processedSegments.slice(1)
+        ];
+      } else {
+        // If only newline + whitespace, keep just the newline
+        processedSegments = [
+          { ...firstText, value: indentMatch[1] } as Text,
+          ...processedSegments.slice(1)
+        ];
+      }
+    }
+  }
 
   const result: Block = {
     type: 'Block',
@@ -114,8 +139,8 @@ function extractPrefixPostfixFromBlock(block: Block): Block {
   if (block.location) {
     result.location = block.location;
   }
-  if (block.prefix) {
-    result.prefix = block.prefix;
+  if (blockPrefix) {
+    result.prefix = blockPrefix;
   }
   if (block.postfix) {
     result.postfix = block.postfix;
@@ -124,10 +149,6 @@ function extractPrefixPostfixFromBlock(block: Block): Block {
 }
 
 function extractPrefixPostfix(segments: Segment[]): Segment[] {
-  return extractPrefixPostfixInternal(segments, false);
-}
-
-function extractPrefixPostfixInternal(segments: Segment[], skipPrefixExtraction: boolean): Segment[] {
   const result: Segment[] = [];
 
   for (let i = 0; i < segments.length; i++) {
@@ -190,49 +211,30 @@ function extractPrefixPostfixInternal(segments: Segment[], skipPrefixExtraction:
                            segment.type === 'ForEachDirective' ||
                            segment.type === 'MacroDirective';
 
-      // Only extract prefix if we're not skipping (i.e., we're at the top level, not inside a Block)
-      if (!skipPrefixExtraction && !isMacroDirective && prevSegment && prevSegment.type === 'Text') {
+      if (!isMacroDirective && !hasBlockBody && prevSegment && prevSegment.type === 'Text') {
         const text = prevSegment.value;
-        // Extract prefix based on text content:
-        // 1. If text is whitespace-only SPACES/TABS (no newlines): extract as prefix
-        // 2. If text is newline + spaces/tabs: extract ONLY the spaces/tabs as prefix (for Block indentation)
-        // 3. If text has content: only extract indentation (spaces/tabs) after last newline
-        // The newline stays with content to preserve line structure (e.g., "Numbers:\n" before #foreach)
+        // Extract prefix for non-Block directives (SetDirective, etc.)
+        // For Block-body directives, the Block extracts its own prefix in extractPrefixPostfixFromBlock
 
-        // Match pure spaces/tabs (no newlines)
-        const pureWhitespaceMatch = text.match(/^[ \t]+$/);
-        if (pureWhitespaceMatch) {
-          // Text is spaces/tabs only - extract as prefix
-          // For directives with Block bodies, this goes to the Block (indentation)
-          if (hasBlockBody) {
-            if (segment.type === 'IfDirective') {
-              (segment as IfDirective).thenBody.prefix = text;
-            } else if (segment.type === 'ForEachDirective') {
-              (segment as ForEachDirective).body.prefix = text;
-            }
-          } else {
+        // Match newline followed by spaces/tabs
+        const newlineIndentMatch = text.match(/^(\r?\n)([ \t]+)$/);
+        if (newlineIndentMatch && newlineIndentMatch[1] && newlineIndentMatch[2]) {
+          (segment as any).prefix = newlineIndentMatch[2];
+          (prevSegment as Text).value = newlineIndentMatch[1];
+        } else {
+          // Match pure spaces/tabs (no newlines)
+          const pureWhitespaceMatch = text.match(/^[ \t]+$/);
+          if (pureWhitespaceMatch) {
             (segment as any).prefix = text;
-          }
-          result.pop();
-        } else if (text.match(/\r?\n$/)) {
-          // Text ends with newline - check if there's indentation after the newline
-          const indentMatch = text.match(/\r?\n([ \t]+)$/);
-          if (indentMatch && indentMatch[1]) {
-            // Extract only the indentation (spaces/tabs) after the newline
-            // The newline itself stays with the previous content
-            if (hasBlockBody) {
-              if (segment.type === 'IfDirective') {
-                (segment as IfDirective).thenBody.prefix = indentMatch[1];
-              } else if (segment.type === 'ForEachDirective') {
-                (segment as ForEachDirective).body.prefix = indentMatch[1];
-              }
-            } else {
-              (segment as any).prefix = indentMatch[1];
+            result.pop();
+          } else {
+            // Text has content - check if it ends with newline + indentation
+            const trailingIndentMatch = text.match(/^(.+\r?\n)([ \t]+)$/s);
+            if (trailingIndentMatch && trailingIndentMatch[1] && trailingIndentMatch[2]) {
+              (segment as any).prefix = trailingIndentMatch[2];
+              (prevSegment as Text).value = trailingIndentMatch[1];
             }
-            (prevSegment as Text).value = text.slice(0, -indentMatch[1].length);
           }
-          // If there's a newline but NO indentation after it, don't extract anything
-          // The newline stays with the previous content
         }
       }
 
