@@ -6,7 +6,7 @@
  * Run with: npm run example:email
  */
 
-import { VelocityEngine } from '../src/engine.js';
+import { VelocityEngine } from '@fearlessfara/velocits';
 
 console.log('=== Email Template Examples ===\n');
 

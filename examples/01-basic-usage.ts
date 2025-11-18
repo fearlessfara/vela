@@ -5,7 +5,7 @@
  * Run with: npm run example:basic
  */
 
-import { VelocityEngine } from '../src/engine.js';
+import { VelocityEngine } from '@fearlessfara/velocits';
 
 console.log('=== Basic VTL Usage Examples ===\n');
 

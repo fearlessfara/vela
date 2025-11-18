@@ -4,13 +4,7 @@ This folder contains practical, runnable examples demonstrating various features
 
 ## Running Examples
 
-First, build the project:
-
-```bash
-npm run build
-```
-
-Then run any example:
+Run any example directly with npm scripts:
 
 ```bash
 # Run all examples
@@ -23,6 +17,21 @@ npm run example:email      # Email template generation
 npm run example:report     # Report generation
 npm run example:config     # Configuration file generation
 ```
+
+## TypeScript Best Practices
+
+These examples follow modern TypeScript best practices:
+
+1. **Direct TypeScript Execution**: Examples run directly using [`tsx`](https://github.com/privatenumber/tsx) - no compilation step needed during development
+2. **Package Imports**: Examples import from the package name (`@fearlessfara/velocits`) rather than relative paths, showing users how they would actually use the library
+3. **Type Safety**: Full TypeScript type checking with strict mode enabled
+4. **ESM Modules**: Modern ES module syntax throughout
+
+This approach provides:
+- Faster development iteration (no build step for examples)
+- Clearer, more realistic code samples
+- Better developer experience
+- Production-ready import patterns
 
 ## Examples Overview
 
