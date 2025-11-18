@@ -105,13 +105,16 @@ function extractPrefixPostfixFromBlock(block: Block): Block {
   // Recursively process the segments inside the block
   let processedSegments = extractPrefixPostfix(block.segments);
   let blockPrefix = block.prefix;
+  let blockPostfix = block.postfix;
 
-  // Extract Block's own prefix from first segment if it's newline + whitespace
+  // Extract Block's own prefix from first segment if it's newline + whitespace before content
   // This handles indentation before block content when there's no nested directive
+  // Only extract if spaces are NOT followed by another newline (blank line with spaces)
   if (processedSegments.length > 0 && processedSegments[0] && processedSegments[0].type === 'Text') {
     const firstText = processedSegments[0] as Text;
-    // Match newline followed by spaces/tabs at the start
-    const indentMatch = firstText.value.match(/^(\r?\n)([ \t]+)/);
+    // Match newline followed by spaces/tabs, but NOT if followed by another newline (blank line)
+    // Use negative lookahead to avoid extracting blank lines with trailing spaces
+    const indentMatch = firstText.value.match(/^(\r?\n)([ \t]+)(?!\r?\n)/);
     if (indentMatch && indentMatch[1] && indentMatch[2]) {
       // Extract the indentation as Block prefix
       blockPrefix = indentMatch[2];
@@ -132,6 +135,31 @@ function extractPrefixPostfixFromBlock(block: Block): Block {
     }
   }
 
+  // Extract Block's postfix from last segment if it ends with whitespace
+  // This handles indentation before #end (which is on a directive-only line and should be gobbled)
+  const lastIdx = processedSegments.length - 1;
+  if (lastIdx >= 0 && processedSegments[lastIdx] && processedSegments[lastIdx].type === 'Text') {
+    const lastText = processedSegments[lastIdx] as Text;
+
+    // First try: content + newline + spaces/tabs (e.g., "inner\n  ")
+    let trailingIndentMatch = lastText.value.match(/^(.*\r?\n)([ \t]+)$/s);
+    if (trailingIndentMatch && trailingIndentMatch[1] && trailingIndentMatch[2]) {
+      blockPostfix = trailingIndentMatch[2];
+      processedSegments = [
+        ...processedSegments.slice(0, lastIdx),
+        { ...lastText, value: trailingIndentMatch[1] } as Text
+      ];
+    } else {
+      // Second try: just spaces/tabs (e.g., "  ") - whitespace-only text at end of block
+      const whitespaceOnlyMatch = lastText.value.match(/^[ \t]+$/);
+      if (whitespaceOnlyMatch) {
+        blockPostfix = lastText.value;
+        // Remove this text segment entirely
+        processedSegments = processedSegments.slice(0, lastIdx);
+      }
+    }
+  }
+
   const result: Block = {
     type: 'Block',
     segments: processedSegments,
@@ -142,8 +170,8 @@ function extractPrefixPostfixFromBlock(block: Block): Block {
   if (blockPrefix) {
     result.prefix = blockPrefix;
   }
-  if (block.postfix) {
-    result.postfix = block.postfix;
+  if (blockPostfix) {
+    result.postfix = blockPostfix;
   }
   return result;
 }
@@ -191,13 +219,15 @@ function extractPrefixPostfix(segments: Segment[]): Segment[] {
     if (isDirective) {
       // Check if there's content before this directive on the same line
       // This must be done BEFORE prefix extraction, using the previous segment's ORIGINAL value
-      // A directive is NOT on a directive-only line if there's content before it on the same line
-      // If previous segment ends with newline, the directive is on a new line
+      // A directive is on a directive-only line if the previous Text:
+      //   - Is empty, OR
+      //   - Ends with newline (possibly followed by spaces/tabs for indentation)
+      // If text ends with "\n" or "\n    " etc., the directive is on a new line
       const hasContentBefore = prevSegment && (
                               prevSegment.type !== 'Text' ||
                               (prevSegment.type === 'Text' &&
-                               !prevSegment.value.match(/\r?\n$/) &&
-                               prevSegment.value.length > 0));
+                               prevSegment.value.length > 0 &&
+                               !prevSegment.value.match(/(\r?\n[ \t]*)$/)));
       if (hasContentBefore) {
         (segment as any).hasContentBefore = true;
       }

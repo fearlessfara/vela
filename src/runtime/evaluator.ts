@@ -129,10 +129,18 @@ export class VtlEvaluator {
    * Reference: Java ASTBlock.java:133-157
    */
   private evaluateBlock(block: Block): void {
-    // Write block prefix (indentation) based on space gobbling mode
-    // Reference: Java ASTBlock.java:139-142
-    // Only write prefix in NONE mode (gobble indentation in LINES/BC/STRUCTURED)
-    if (block.prefix && this.spaceGobbling === 'none') {
+    // Check if block contains any actual output content (not just directives)
+    // Output content includes: Text with non-whitespace, VariableReference, Interpolation
+    // Directives don't count as they only control flow
+    const hasTextContent = block.segments.some(seg =>
+      (seg.type === 'Text' && (seg as Text).value.trim().length > 0) ||
+      seg.type === 'VariableReference' ||
+      seg.type === 'Interpolation'
+    );
+
+    // Write block prefix (indentation) only if block has output content
+    // If block only contains directives, skip the prefix (the nested directive's block will have the correct prefix)
+    if (block.prefix && hasTextContent) {
       this.stringBuilder.appendString(block.prefix);
     }
 
@@ -146,12 +154,9 @@ export class VtlEvaluator {
 
     // Write block postfix based on space gobbling mode
     // Reference: Java ASTBlock.java:149-152
-    // Write postfix if it has content OR mode is 'none'
-    if (block.postfix) {
-      const hasContent = block.postfix.trim().length > 0;
-      if (this.spaceGobbling === 'none' || hasContent) {
-        this.stringBuilder.appendString(block.postfix);
-      }
+    // Postfix is typically indentation before #end - gobble it in LINES mode
+    if (block.postfix && this.spaceGobbling === 'none') {
+      this.stringBuilder.appendString(block.postfix);
     }
   }
 
