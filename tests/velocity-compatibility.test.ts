@@ -22,32 +22,24 @@ const __dirname = path.dirname(__filename);
 // Helper to run Java Velocity and get output
 function getJavaOutput(template: string, context: any): string | null {
   try {
-    const testDir = path.join(__dirname, 'velocity', '__temp__');
-    fs.mkdirSync(testDir, { recursive: true });
+    // Escape template and context for shell
+    const escapedTemplate = template.replace(/'/g, "'\"'\"'");
+    const contextJson = JSON.stringify(context);
+    const escapedContext = contextJson.replace(/'/g, "'\"'\"'");
 
-    const templateFile = path.join(testDir, 'template.vtl');
-    const inputFile = path.join(testDir, 'input.json');
-
-    fs.writeFileSync(templateFile, template);
-    fs.writeFileSync(inputFile, JSON.stringify(context));
-
-    const javaRunner = path.join(__dirname, '../tools/compare-velocity/VelocityRunner.java');
-    const classpath = [
-      'vendor/velocity-engine/velocity-engine-core/target/classes',
-      'vendor/velocity-engine/velocity-engine-core/target/dependency/*'
-    ].join(':');
+    // Use the correct classpath to jars directory
+    // When this code runs from dist/tests, we need to go to tools/compare-velocity
+    const toolsDir = path.join(__dirname, '../../tools/compare-velocity');
+    const classpath = `jars/*:${toolsDir}`;
 
     const result = execSync(
-      `java -cp "${classpath}" VelocityRunner "${templateFile}" "${inputFile}"`,
+      `java -cp "${classpath}" VelocityRunner '${escapedTemplate}' '${escapedContext}'`,
       {
-        cwd: path.join(__dirname, '..'),
+        cwd: toolsDir,
         encoding: 'utf8',
-        stdio: ['pipe', 'pipe', 'pipe']
+        maxBuffer: 10 * 1024 * 1024, // 10MB buffer
       }
     );
-
-    // Clean up
-    fs.rmSync(testDir, { recursive: true, force: true });
 
     return result;
   } catch (error) {
