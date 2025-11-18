@@ -344,7 +344,8 @@ export class VelocityEngine {
    * @throws MethodInvocationException if method invocation fails during evaluation
    */
   render(template: string, context: EvaluationContext = {}): string {
-    return this.evaluate(context, template);
+    const result = this.evaluate(context, template);
+    return typeof result === 'string' ? result : '';
   }
 
   /**
@@ -352,11 +353,12 @@ export class VelocityEngine {
    *
    * @param context Context object containing data for rendering
    * @param template The VTL template string to evaluate
-   * @param _logTag Optional tag for logging (for compatibility, currently unused)
-   * @returns Rendered output string
+   * @param logTag Optional tag for logging (for compatibility, currently unused)
+   * @param outputCallback Optional callback for streaming output (Writer equivalent)
+   * @returns Rendered output string (or true if callback provided)
    * @throws ParseErrorException if template parsing fails
    */
-  evaluate(context: EvaluationContext, template: string, _logTag?: string): string {
+  evaluate(context: EvaluationContext, template: string, _logTag?: string, outputCallback?: (chunk: string) => void): string | boolean {
     try {
       // Auto-initialize if needed (like Java implementation)
       if (!this.initialized) {
@@ -383,6 +385,12 @@ export class VelocityEngine {
       const evaluator = new VtlEvaluator(context, this.config.spaceGobbling || 'lines');
       const output = evaluator.evaluateTemplate(ast);
 
+      // If callback provided (Writer-style), call it with output and return true
+      if (outputCallback) {
+        outputCallback(output);
+        return true;
+      }
+
       return output;
     } catch (error) {
       if (error instanceof ParseErrorException) {
@@ -390,6 +398,25 @@ export class VelocityEngine {
       }
       throw error instanceof Error ? error : new Error(String(error));
     }
+  }
+
+  /**
+   * Evaluates a template from a readable stream (Reader equivalent)
+   * @param context Context object
+   * @param templateContent Template content (can be string or async function returning string)
+   * @param logTag Optional log tag
+   * @param outputCallback Optional callback for streaming output
+   * @returns Rendered output string or true if callback provided
+   */
+  async evaluateReader(
+    context: EvaluationContext,
+    templateContent: string | (() => Promise<string>),
+    logTag?: string,
+    outputCallback?: (chunk: string) => void
+  ): Promise<string | boolean> {
+    // If templateContent is a function, call it to get the content
+    const content = typeof templateContent === 'function' ? await templateContent() : templateContent;
+    return this.evaluate(context, content, logTag, outputCallback);
   }
 
   /**

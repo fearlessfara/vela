@@ -1,13 +1,14 @@
-# Velocits
+# VelociTS
 
-A TypeScript implementation of the Apache Velocity Template Language (VTL) with 1:1 Java compatibility. Built for both Node.js and browser environments using modern TypeScript best practices.
+A TypeScript implementation of the Apache Velocity Template Language (VTL) with Java compatibility. Built for both Node.js and browser environments using modern TypeScript best practices.
 
 ## Features
 
-- **Full VTL Support**: Directives (`#set`, `#if`, `#foreach`, `#break`, `#stop`), expressions, and variable references
-- **File-Based Templates**: Load templates from files using resource loaders (Node.js only)
-- **Java-Compatible**: 1:1 compatibility with Apache Velocity, tested against the Java reference implementation
-- **Configuration System**: Full properties/options support matching Java's RuntimeConstants
+- **Full VTL Support**: Complete Apache Velocity Template Language implementation - all directives (`#set`, `#if`, `#foreach`, `#break`, `#stop`), expressions, and variable references
+- **File-Based Templates**: Load and cache templates from filesystem using resource loaders (Node.js only)
+- **Java-Compatible API**: Feature parity with Apache Velocity Java engine - same methods, same behavior, tested against Java reference implementation
+- **Configuration System**: Complete properties/options support with all Java RuntimeConstants
+- **Stream Support**: Callback-based output (Writer equivalent) and async input (Reader equivalent)
 - **Universal**: Works in Node.js and browsers (UMD, ESM)
 - **Type-Safe**: Written in TypeScript with strict type checking
 - **Zero Dependencies**: Only runtime dependency is Chevrotain for parsing
@@ -35,7 +36,7 @@ console.log(output); // "Hello, World!"
 ```html
 <script src="https://unpkg.com/@fearlessfara/velocits"></script>
 <script>
-  const engine = new Velocits.VelocityEngine();
+  const engine = new VelociTS.VelocityEngine();
   const output = engine.render('Hello, $name!', { name: 'World' });
   console.log(output); // "Hello, World!"
 </script>
@@ -112,6 +113,41 @@ if (engine.resourceExists('template.vtl')) {
 }
 ```
 
+### Stream Support (Writer/Reader Equivalents)
+
+```typescript
+import { VelocityEngine } from '@fearlessfara/velocits';
+
+const engine = new VelocityEngine();
+
+// Callback-based output (Java Writer equivalent)
+let output = '';
+engine.evaluate(
+  { name: 'World' },
+  'Hello, $name!',
+  'myTemplate',
+  (chunk) => { output += chunk; }
+);
+
+// Async input support (Java Reader equivalent)
+const result = await engine.evaluateReader(
+  { message: 'Async content' },
+  async () => {
+    // Load template from async source
+    const templateContent = await fetchTemplate();
+    return templateContent;
+  }
+);
+
+// Combined: async input + callback output
+await engine.evaluateReader(
+  context,
+  async () => await loadTemplate(),
+  'logTag',
+  (chunk) => process.stdout.write(chunk)
+);
+```
+
 ## Supported Features
 
 ### Template Language
@@ -126,26 +162,31 @@ if (engine.resourceExists('template.vtl')) {
 - **Type Coercion**: Follows Apache Velocity semantics for truthiness and type conversion
 - **Scoping**: Proper variable scoping with foreach loop variables
 
-### Engine Features
+### Engine Features (Java API Parity)
 - **File-Based Templates** (Node.js only):
   - `getTemplate(name, encoding?)` - Load and parse template files
   - `getTemplateAsync(name, encoding?)` - Async version
   - `mergeTemplate(name, context)` - Load and render in one step
   - `resourceExists(name)` - Check if template file exists
+- **Stream Support**:
+  - `evaluate()` with callback - Stream output (Writer equivalent)
+  - `evaluateReader()` - Async input support (Reader equivalent)
 - **Resource Loaders**:
   - `FileResourceLoader` - Load templates from the filesystem
   - `StringResourceLoader` - In-memory string templates
-  - Custom resource loaders via `ResourceLoader` interface
-- **Configuration**:
+  - `addResourceLoader()` / `getResourceLoader()` - Custom loaders
+  - ResourceLoader interface for implementing custom loaders
+- **Configuration** (all Java RuntimeConstants):
   - `setProperty(key, value)` - Set individual properties
   - `addProperty(key, value)` - Add to array properties
-  - `getProperty(key)` - Get property value
-  - `setProperties(map)` - Bulk set from Map
+  - `getProperty(key)` / `clearProperty(key)` - Manage properties
+  - `setProperties(map)` - Bulk configuration from Map
   - `setPropertiesFromFile(path)` - Load from .properties file
   - `init()` / `init(properties)` / `init(propertiesFile)` - Initialize engine
-  - All Java RuntimeConstants supported
-- **Caching**: Template caching with configurable options
+  - 60+ configuration constants matching Java implementation
+- **Caching**: Template caching with configurable TTL and size limits
 - **Encoding**: Configurable character encoding (default UTF-8)
+- **Application Attributes**: Cross-component communication via `setApplicationAttribute()` / `getApplicationAttribute()`
 
 ## Development
 
@@ -198,7 +239,8 @@ class VelocityEngine {
 
   // String template rendering
   render(template: string, context?: object): string
-  evaluate(context: object, template: string, logTag?: string): string
+  evaluate(context: object, template: string, logTag?: string, outputCallback?: (chunk: string) => void): string | boolean
+  evaluateReader(context: object, templateContent: string | (() => Promise<string>), logTag?: string, outputCallback?: (chunk: string) => void): Promise<string | boolean>
 
   // File-based templates (Node.js only)
   getTemplate(name: string, encoding?: string): Template
