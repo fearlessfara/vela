@@ -113,12 +113,14 @@ console.log('\n' + '='.repeat(70) + '\n');
 // Example 2: Docker Compose Configuration
 console.log('2. Docker Compose Configuration:');
 const dockerComposeTemplate = `
-version: '$version'
+version: $version
 
 services:
 #foreach($service in $services)
   $service.name:
+#if($service.image)
     image: $service.image
+#end
 #if($service.build)
     build:
       context: $service.build.context
@@ -127,7 +129,7 @@ services:
 #if($service.ports && $service.ports.size() > 0)
     ports:
 #foreach($port in $service.ports)
-      - "$port.host:$port.container"
+      - $port.host:$port.container
 #end
 #end
 #if($service.environment && $service.environment.size() > 0)
@@ -195,11 +197,11 @@ const dockerContext = {
         context: '.',
         dockerfile: 'Dockerfile'
       },
-      environment: new Map([
-        ['NODE_ENV', 'production'],
-        ['DB_HOST', 'db'],
-        ['REDIS_HOST', 'redis']
-      ]),
+      environment: {
+        'NODE_ENV': 'production',
+        'DB_HOST': 'db',
+        'REDIS_HOST': 'redis'
+      },
       ports: [
         { host: '3000', container: '3000' }
       ],
@@ -209,11 +211,11 @@ const dockerContext = {
     {
       name: 'db',
       image: 'postgres:15-alpine',
-      environment: new Map([
-        ['POSTGRES_DB', 'myapp'],
-        ['POSTGRES_USER', 'appuser'],
-        ['POSTGRES_PASSWORD', 'secret']
-      ]),
+      environment: {
+        'POSTGRES_DB': 'myapp',
+        'POSTGRES_USER': 'appuser',
+        'POSTGRES_PASSWORD': 'secret'
+      },
       volumes: ['db-data:/var/lib/postgresql/data'],
       networks: ['backend']
     },
@@ -223,10 +225,10 @@ const dockerContext = {
       networks: ['backend']
     }
   ],
-  networks: new Map([
-    ['frontend', { driver: 'bridge' }],
-    ['backend', { driver: 'bridge' }]
-  ]),
+  networks: {
+    'frontend': { driver: 'bridge' },
+    'backend': { driver: 'bridge' }
+  },
   volumes: ['db-data']
 };
 
@@ -286,18 +288,18 @@ const githubContext = {
       name: 'test',
       runsOn: 'ubuntu-latest',
       strategy: {
-        matrix: new Map([
-          ['node-version', ['16.x', '18.x', '20.x']]
-        ])
+        matrix: {
+          'node-version': ['16.x', '18.x', '20.x']
+        }
       },
       steps: [
         { name: 'Checkout code', uses: 'actions/checkout@v3' },
         {
           name: 'Setup Node.js',
           uses: 'actions/setup-node@v3',
-          with: new Map([
-            ['node-version', '${{ matrix.node-version }}']
-          ])
+          with: {
+            'node-version': '${{ matrix.node-version }}'
+          }
         },
         { name: 'Install dependencies', run: 'npm ci' },
         { name: 'Run tests', run: 'npm test' },
@@ -310,7 +312,7 @@ const githubContext = {
       steps: [
         { name: 'Checkout code', uses: 'actions/checkout@v3' },
         { name: 'Build application', run: 'npm run build' },
-        { name: 'Upload artifacts', uses: 'actions/upload-artifact@v3', with: new Map([['name', 'dist'], ['path', 'dist/']]) }
+        { name: 'Upload artifacts', uses: 'actions/upload-artifact@v3', with: { 'name': 'dist', 'path': 'dist/' } }
       ]
     }
   ]
