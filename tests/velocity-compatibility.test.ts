@@ -14,7 +14,7 @@ import { VelocityEngine } from '../src/engine.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { execSync } from 'child_process';
+import { spawnSync } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,26 +22,32 @@ const __dirname = path.dirname(__filename);
 // Helper to run Java Velocity and get output
 function getJavaOutput(template: string, context: any): string | null {
   try {
-    // Escape template and context for shell
-    const escapedTemplate = template.replace(/'/g, "'\"'\"'");
-    const contextJson = JSON.stringify(context);
-    const escapedContext = contextJson.replace(/'/g, "'\"'\"'");
-
-    // Use the correct classpath to jars directory
-    // When this code runs from dist/tests, we need to go to tools/compare-velocity
+    // Use spawnSync with direct argument passing to avoid shell escaping issues
     const toolsDir = path.join(__dirname, '../../tools/compare-velocity');
     const classpath = `jars/*:${toolsDir}`;
+    const contextJson = JSON.stringify(context);
 
-    const result = execSync(
-      `java -cp "${classpath}" VelocityRunner '${escapedTemplate}' '${escapedContext}'`,
+    // Use spawnSync to pass arguments directly without shell interpretation
+    const result = spawnSync(
+      'java',
+      ['-cp', classpath, 'VelocityRunner', template, contextJson],
       {
         cwd: toolsDir,
         encoding: 'utf8',
-        maxBuffer: 10 * 1024 * 1024, // 10MB buffer
+        maxBuffer: 10 * 1024 * 1024,
       }
     );
 
-    return result;
+    if (result.error) {
+      throw result.error;
+    }
+
+    if (result.status !== 0) {
+      // Java execution failed
+      return null;
+    }
+
+    return result.stdout;
   } catch (error) {
     // Java comparison failed - skip it
     return null;

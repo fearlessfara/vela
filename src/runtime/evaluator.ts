@@ -633,12 +633,24 @@ export class VtlEvaluator {
   private interpolateString(str: string): string {
     // Simple regex-based interpolation for $var patterns
     // This doesn't handle complex ${expr} yet, but covers most cases
-    return str.replace(/\$(!?)([a-zA-Z_$][a-zA-Z0-9_$]*)/g, (match, quiet, varName) => {
+    const interpolated = str.replace(/\$(!?)([a-zA-Z_$][a-zA-Z0-9_$]*)/g, (match, quiet, varName) => {
       const value = this.scopeManager.getVariable(varName) ?? this.getContextVariable(varName);
       if (value === undefined || value === null) {
         return quiet ? '' : match; // Quiet ref returns empty, normal ref returns literal
       }
       return String(value);
+    });
+
+    // Unescape escape sequences after interpolation
+    return interpolated.replace(/\\(.)/g, (_match, char) => {
+      switch (char) {
+        case 'n': return '\n';
+        case 't': return '\t';
+        case 'r': return '\r';
+        case 'b': return '\b';
+        case 'f': return '\f';
+        default: return char; // For \", \\, etc., just return the character
+      }
     });
   }
 
