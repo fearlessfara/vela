@@ -1,22 +1,25 @@
-# Publishes the package to npm whenever a GitHub release is published.
-name: Publish Release
+name: Semantic Release
 
 on:
-  release:
-    types:
-      - published
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  id-token: write
 
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          submodules: true
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -39,14 +42,9 @@ jobs:
       - name: Test
         run: npm test
 
-      - name: Publish stable release
-        if: ${{ !github.event.release.prerelease }}
-        run: npm publish
+      - name: Release
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish pre-release
-        if: ${{ github.event.release.prerelease }}
-        run: npm publish --tag next
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npx semantic-release
