@@ -16,12 +16,16 @@ export const StringLiteral = createToken({
     exec: (text: string, startOffset: number) => {
       const len = text.length;
       if (startOffset >= len) return null;
-      
+
       const startChar = text.charCodeAt(startOffset);
       const isDouble = startChar === 34; // "
       const isSingle = startChar === 39; // '
-      
+
       if (!isDouble && !isSingle) return null;
+
+      // Only match string literals in expression contexts (inside directives, ${...}, etc.)
+      // In template text, quotes are just literal characters
+      if (!isInExpressionContext(text, startOffset)) return null;
       
       const quoteChar = isDouble ? '"' : "'";
       let i = startOffset + 1;
@@ -868,6 +872,8 @@ export const TemplateText = createToken({
         // These are all special characters in Velocity and should be their own tokens
         // Note: = is no longer in this list because it's now context-aware and only
         // matches in expression contexts. In template text, = is just a regular character.
+        // Note: Quotes (' ") are NOT in this list because they're just literal characters
+        // in template text. StringLiteral token will match them only in expression contexts.
         if (ch === 35 || ch === 36 ||
             ch === 91 || ch === 93 || ch === 40 || ch === 41 || ch === 123 || ch === 125) {
           break;
